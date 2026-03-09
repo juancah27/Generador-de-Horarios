@@ -1,0 +1,309 @@
+﻿<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FIIS - Generador de Horarios 2026-1</title>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/src/styles.css" />
+</head>
+<body>
+
+<header>
+  <div class="logo">FIIS</div>
+  <h1>Generador de Horarios <span>- 2026-1</span></h1>
+  <div class="header-stats">
+    <div class="stat-chip">
+      <div class="dot" style="background:#3b82f6"></div>
+      <span id="total-courses-count">136 cursos</span>
+    </div>
+    <div class="stat-chip">
+      <div class="dot" style="background:#10b981"></div>
+      <span id="selected-count">0 seleccionados</span>
+    </div>
+  </div>
+</header>
+
+<div class="app">
+  <!-- SIDEBAR: Course List -->
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <div class="panel-header-row">
+        <h2>Catálogo de Cursos</h2>
+        <button
+          class="panel-head-action"
+          id="toggle-sidebar-btn"
+          onclick="togglePanel('sidebar')"
+          title="Ocultar panel de cursos"
+          aria-label="Ocultar panel de cursos"
+        >
+          ×
+        </button>
+      </div>
+      <div class="search-box">
+        <span class="search-icon">&#128269;</span>
+        <input type="text" id="search-input" placeholder="Buscar curso..." autocomplete="off">
+      </div>
+    </div>
+    <div class="filter-tabs" id="filter-tabs">
+      <button class="tab-btn active" data-filter="all">Todos</button>
+      <button class="tab-btn" data-filter="recommended">&#9733; Recomendados</button>
+      <button class="tab-btn" data-filter="selected">✓ Mis cursos</button>
+    </div>
+    <div class="courses-list" id="courses-list"></div>
+  </div>
+
+  <!-- MAIN: Schedule Grid -->
+  <div class="main">
+    <div class="toolbar">
+      <span class="toolbar-title">🗓 Vista Semanal</span>
+      <button class="auto-btn" onclick="autoSelectBest()">✨ Mejor horario automático</button>
+      <button class="btn btn-ghost" onclick="openOptimizer()" style="border-color:rgba(99,102,241,0.4);color:#a5b4fc">⚙ Parámetros</button>
+      <div id="conflict-badge" class="conflict-badge">⚠ Cruces detectados</div>
+      <div class="spacer"></div>
+      <button class="btn btn-ghost" onclick="clearAll()">🗑 Limpiar</button>
+      <button class="btn btn-success" onclick="exportSchedule()">📤 Exportar</button>
+    </div>
+    <div class="opt-score-bar" id="opt-score-bar" style="display:none">
+      <span style="font-size:11px;color:var(--muted);font-weight:600">MÉTRICAS:</span>
+      <div class="opt-metric"><span class="label">Días usados&nbsp;</span><span class="val" id="m-days">–</span></div>
+      <div class="opt-metric"><span class="label">Días libres&nbsp;</span><span class="val" id="m-free" style="color:#4ade80">–</span></div>
+      <div class="opt-metric"><span class="label">Hora inicio&nbsp;</span><span class="val" id="m-start">–</span></div>
+      <div class="opt-metric"><span class="label">Hora fin&nbsp;</span><span class="val" id="m-end">–</span></div>
+      <div class="opt-metric"><span class="label">Cruces T/T&nbsp;</span><span class="val" id="m-tt">–</span></div>
+      <div class="opt-metric"><span class="label">Cruces T/P&nbsp;</span><span class="val" id="m-tp">–</span></div>
+    </div>
+    <div class="conflict-detail-bar" id="conflict-detail-bar"></div>
+    <div class="grid-container">
+      <div class="schedule-grid" id="schedule-grid">
+        <div class="grid-header">
+          <div class="day-col-header" style="border-right:1px solid var(--border)"></div>
+          <div class="day-col-header lunes">LUN</div>
+          <div class="day-col-header martes">MAR</div>
+          <div class="day-col-header miercoles">MIÉ</div>
+          <div class="day-col-header jueves">JUE</div>
+          <div class="day-col-header viernes">VIE</div>
+          <div class="day-col-header sabado">SAB</div>
+        </div>
+        <div class="grid-body" id="grid-body"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SUMMARY PANEL -->
+  <div class="summary-panel">
+    <div class="summary-header">
+      <span>Mi Horario</span>
+      <button
+        class="panel-head-action"
+        id="toggle-summary-btn"
+        onclick="togglePanel('summary')"
+        title="Ocultar panel de horario"
+        aria-label="Ocultar panel de horario"
+      >
+        ×
+      </button>
+    </div>
+    <div class="summary-content" id="summary-content">
+      <div class="empty-state">
+        <div class="icon">📅</div>
+        <p>Selecciona cursos del panel izquierdo para armar tu horario</p>
+      </div>
+    </div>
+  </div>
+  <button
+    class="panel-reopen panel-reopen-left"
+    id="reopen-sidebar-btn"
+    onclick="togglePanel('sidebar')"
+    title="Mostrar panel de cursos"
+    aria-label="Mostrar panel de cursos"
+  >
+    Cursos
+  </button>
+  <button
+    class="panel-reopen panel-reopen-right"
+    id="reopen-summary-btn"
+    onclick="togglePanel('summary')"
+    title="Mostrar panel de horario"
+    aria-label="Mostrar panel de horario"
+  >
+    Horario
+  </button>
+</div>
+
+<!-- OPTIMIZER REPORT MODAL -->
+<div class="modal-overlay" id="modal-report" onclick="if(event.target===this)closeReport()">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-header">
+      <div>
+        <h2>📊 Resultado del Optimizador</h2>
+        <p>Detalle de qué se pudo colocar y por qué se descartó algo</p>
+      </div>
+      <button class="modal-close" onclick="closeReport()">×</button>
+    </div>
+    <div class="modal-body" id="opt-report-body" style="padding:16px 20px"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="openOptimizer();closeReport()">⚙ Ajustar parámetros</button>
+      <button class="auto-btn" onclick="closeReport()">✓ Entendido</button>
+    </div>
+  </div>
+</div>
+
+<!-- OPTIMIZER MODAL -->
+<div class="modal-overlay" id="modal-overlay" onclick="if(event.target===this)closeOptimizer()">
+  <div class="modal">
+    <div class="modal-header">
+      <div>
+        <h2>⚙ Parámetros del Generador</h2>
+        <p>Configura las reglas de cruce y la optimización de horario</p>
+      </div>
+      <button class="modal-close" onclick="closeOptimizer()">×</button>
+    </div>
+    <div class="modal-body">
+
+      <div class="modal-section">
+        <div class="modal-section-title">📋 Reglas de Cruce (Normas FIIS)</div>
+        <div class="rule-card">
+          <div class="rule-icon">📖</div>
+          <div class="rule-info">
+            <div class="rule-title">Teoría + Teoría</div>
+            <div class="rule-desc">Máximo de horas permitidas de solapamiento entre dos clases de Teoría (T)</div>
+            <div style="margin-top:8px;display:flex;align-items:center;gap:10px">
+              <label style="font-size:12px;color:var(--muted)">Máx. horas cruce:</label>
+              <input type="number" class="num-input" id="rule-tt" value="4" min="0" max="8">
+              <span style="font-size:11px;color:var(--muted)">hrs (0 = no permitido)</span>
+            </div>
+          </div>
+        </div>
+        <div class="rule-card">
+          <div class="rule-icon">P</div>
+          <div class="rule-info">
+            <div class="rule-title">Teoría + Práctica</div>
+            <div class="rule-desc">Máximo de horas permitidas de solapamiento entre Teoría (T) y Práctica (P/PRA/PC/LAB)</div>
+            <div style="margin-top:8px;display:flex;align-items:center;gap:10px">
+              <label style="font-size:12px;color:var(--muted)">Máx. horas cruce:</label>
+              <input type="number" class="num-input" id="rule-tp" value="2" min="0" max="4">
+              <span style="font-size:11px;color:var(--muted)">hrs (0 = no permitido)</span>
+            </div>
+          </div>
+        </div>
+        <div class="rule-card" style="border-color:rgba(239,68,68,0.3)">
+          <div class="rule-icon">🚫</div>
+          <div class="rule-info">
+            <div class="rule-title">Práctica + Práctica</div>
+            <div class="rule-desc">Cruce entre dos clases de Práctica/Lab <strong style="color:var(--danger)">SIEMPRE PROHIBIDO</strong> — no configurable por reglamento FIIS</div>
+          </div>
+          <span class="rule-status rule-inactive">Bloqueado</span>
+        </div>
+      </div>
+
+      <div class="modal-section">
+        <div class="modal-section-title">⚡ Optimización de Horario</div>
+
+        <div class="param-row">
+          <div>
+            <div class="param-label">🌙 Clases desde las...</div>
+            <div class="param-desc">Hora mínima de inicio para cualquier clase</div>
+          </div>
+          <div class="param-control">
+            <select class="hour-select" id="opt-min-hour">
+              <option value="7">7:00 am</option>
+              <option value="8">8:00 am</option>
+              <option value="9">9:00 am</option>
+              <option value="10">10:00 am</option>
+              <option value="12">12:00 pm</option>
+              <option value="14">2:00 pm</option>
+              <option value="16" selected>4:00 pm</option>
+              <option value="17">5:00 pm</option>
+              <option value="18">6:00 pm</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="param-row">
+          <div>
+            <div class="param-label">🌅 Clases hasta las...</div>
+            <div class="param-desc">Hora máxima de fin para cualquier clase</div>
+          </div>
+          <div class="param-control">
+            <select class="hour-select" id="opt-max-hour">
+              <option value="18">6:00 pm</option>
+              <option value="19">7:00 pm</option>
+              <option value="20">8:00 pm</option>
+              <option value="21">9:00 pm</option>
+              <option value="22" selected>10:00 pm</option>
+            </select>
+          </div>
+        </div>
+        <div class="param-row">
+          <div>
+            <div class="param-label">📅 Días a librar</div>
+            <div class="param-desc">El optimizador intentará dejarte libres estos días</div>
+          </div>
+        </div>
+        <div class="day-checkboxes" id="free-days-checks">
+          <label class="day-check" data-day="LU"><input type="checkbox" value="LU">Lun</label>
+          <label class="day-check" data-day="MA"><input type="checkbox" value="MA">Mar</label>
+          <label class="day-check" data-day="MI"><input type="checkbox" value="MI">Mié</label>
+          <label class="day-check" data-day="JU"><input type="checkbox" value="JU">Jue</label>
+          <label class="day-check" data-day="VI"><input type="checkbox" value="VI">Vie</label>
+          <label class="day-check" data-day="SA" checked><input type="checkbox" value="SA" checked>Sáb</label>
+        </div>
+
+        <div class="param-row" style="margin-top:12px">
+          <div>
+            <div class="param-label">🎯 Prioridad de optimización</div>
+            <div class="param-desc">¿Qué importa más al generar el horario automático?</div>
+          </div>
+          <div class="param-control">
+            <select class="hour-select" id="opt-priority">
+              <option value="balanced">Balanceado</option>
+              <option value="teacher">Mejor docente</option>
+              <option value="freedays">Más días libres</option>
+              <option value="compact">Horario compacto</option>
+              <option value="late" selected>Clases tarde (≥16h)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="param-row">
+          <div>
+            <div class="param-label">✅ Permitir selección con cruces tolerados</div>
+            <div class="param-desc">Avisar pero no bloquear si el cruce está dentro del límite</div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="allow-partial-conflict" checked>
+            <div class="toggle-track"></div>
+            <div class="toggle-thumb"></div>
+          </label>
+        </div>
+
+        <div class="param-row">
+          <div>
+            <div class="param-label">🔢 Máx. cursos a generar</div>
+            <div class="param-desc">Límite de cursos en el horario automático</div>
+          </div>
+          <div class="param-control">
+            <input type="number" class="num-input" id="opt-max-courses" value="7" min="1" max="12">
+          </div>
+        </div>
+
+      </div><!-- end modal-section -->
+    </div><!-- end modal-body -->
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="resetParams()">↺ Restablecer</button>
+      <button class="btn btn-ghost" onclick="closeOptimizer()">Cancelar</button>
+      <button class="auto-btn" onclick="applyAndGenerate()">✨ Aplicar y generar</button>
+    </div>
+  </div><!-- end modal -->
+</div><!-- end modal-overlay -->
+
+<!-- TOOLTIP -->
+<div id="tooltip" class="tooltip" style="display:none;position:fixed;z-index:500;pointer-events:none;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px;min-width:200px;font-size:12px;box-shadow:0 8px 24px rgba(0,0,0,.5)"></div>
+
+<!-- NOTIFICATION -->
+<div id="notification" class="notification"></div>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
+
