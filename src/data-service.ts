@@ -1,7 +1,18 @@
-import * as XLSX from "xlsx";
+﻿import * as XLSX from "xlsx";
 import { EXCEL_COURSES_FILE, EXCEL_TEACHERS_FILE } from "./constants";
 import { normalizeCourseName, normalizeDay, normalizeTeacherName, parseHour } from "./utils";
 import type { CoursesData, TeacherScores } from "./types";
+
+interface CourseColumns {
+  codigo: number;
+  curso: number;
+  secId: number;
+  docente: number;
+  tipo: number;
+  dia: number;
+  inicio: number;
+  fin: number;
+}
 
 export async function loadDefaultData(): Promise<{ courses: CoursesData; scores: TeacherScores }> {
   const [courses, scores] = await Promise.all([
@@ -64,31 +75,20 @@ function normalizeType(raw: unknown): string {
 function buildCoursesFromRows(rows: unknown[][]): CoursesData {
   const out: CoursesData = {};
   const keyToName: Record<string, string> = {};
-  let headerIdx = -1;
 
-  for (let i = 0; i < rows.length; i++) {
+  const detected = detectHeaderAndColumns(rows);
+  if (!detected) return out;
+
+  for (let i = detected.headerIdx + 1; i < rows.length; i++) {
     const row = rows[i] ?? [];
-    const c1 = normalizeCourseName(String(row[0] ?? ""));
-    const c2 = normalizeCourseName(String(row[1] ?? ""));
-    const c3 = normalizeCourseName(String(row[2] ?? ""));
-    if (c1 === "CODIGO" && c2.includes("NOMBRE DEL CURSO") && c3 === "SECCION") {
-      headerIdx = i;
-      break;
-    }
-  }
-
-  if (headerIdx < 0) return out;
-
-  for (let i = headerIdx + 1; i < rows.length; i++) {
-    const row = rows[i] ?? [];
-    const codigo = String(row[0] ?? "").trim();
-    const curso = String(row[1] ?? "").trim();
-    const secId = String(row[2] ?? "").trim();
-    const docente = String(row[4] ?? "").trim();
-    const tipo = normalizeType(row[5]);
-    const dia = normalizeDay(String(row[6] ?? ""));
-    const inicio = parseHour(row[7]);
-    const fin = parseHour(row[8]);
+    const codigo = String(row[detected.cols.codigo] ?? "").trim();
+    const curso = String(row[detected.cols.curso] ?? "").trim();
+    const secId = String(row[detected.cols.secId] ?? "").trim();
+    const docente = String(row[detected.cols.docente] ?? "").trim();
+    const tipo = normalizeType(row[detected.cols.tipo]);
+    const dia = normalizeDay(String(row[detected.cols.dia] ?? ""));
+    const inicio = parseHour(row[detected.cols.inicio]);
+    const fin = parseHour(row[detected.cols.fin]);
 
     if (!codigo || !curso || !secId || !dia || inicio === null || fin === null || fin <= inicio) continue;
 
@@ -106,4 +106,44 @@ function buildCoursesFromRows(rows: unknown[][]): CoursesData {
   }
 
   return out;
+}
+
+function detectHeaderAndColumns(rows: unknown[][]): { headerIdx: number; cols: CourseColumns } | null {
+  const byName = (
+    normalized: string[],
+    patterns: RegExp[],
+    fallback: number,
+  ): number => {
+    for (const pattern of patterns) {
+      const idx = normalized.findIndex((v) => pattern.test(v));
+      if (idx >= 0) return idx;
+    }
+    return fallback;
+  };
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i] ?? [];
+    const normalized = row.map((c) => normalizeCourseName(String(c ?? "")));
+
+    const hasCode = normalized.includes("CODIGO");
+    const hasCourse = normalized.some((v) => v.includes("NOMBRE DEL CURSO"));
+    const hasSection = normalized.includes("SECCION");
+    if (!hasCode || !hasCourse || !hasSection) continue;
+
+    const cols: CourseColumns = {
+      codigo: byName(normalized, [/^CODIGO$/], 0),
+      curso: byName(normalized, [/NOMBRE DEL CURSO/], 1),
+      secId: byName(normalized, [/^SECCION$/], 2),
+      docente: byName(normalized, [/DOCENTE/], 4),
+      tipo: byName(normalized, [/^TIPO/], 5),
+      dia: byName(normalized, [/^DIA$/], 6),
+      inicio: byName(normalized, [/HORA.*INICIO/, /^INICIO$/], 7),
+      fin: byName(normalized, [/HORA.*FINAL/, /^FINAL$/], 8),
+    };
+
+    const validCols = Object.values(cols).every((n) => Number.isInteger(n) && n >= 0);
+    if (validCols) return { headerIdx: i, cols };
+  }
+
+  return null;
 }

@@ -52,7 +52,7 @@ Este proyecto ya esta preparado para Vercel con build de Vite.
 
 La app intenta cargar automaticamente:
 
-- `public/data/CARGA HORARIA 2026-1 PRELIMINAR.xlsx`
+- `public/data/CARGA HORARIA 2026-1 Oficial.xlsx`
 - `public/data/Tabla de Encuesta Docente en Excel.xlsx`
 
 Si no encuentra algun Excel, usa los JSON por defecto en `public/data/`.
@@ -60,3 +60,4 @@ Si no encuentra algun Excel, usa los JSON por defecto en `public/data/`.
 ## Parametros
 
 Los parametros del optimizador se validan y se guardan en `localStorage` (`fiis_params`) para mantener tu configuracion entre sesiones.
+

@@ -53,5 +53,6 @@ export const DEFAULT_PARAMS: ScheduleParams = {
   allowPartial: true,
 };
 
-export const EXCEL_COURSES_FILE = "/data/CARGA HORARIA 2026-1 PRELIMINAR.xlsx";
+export const EXCEL_COURSES_FILE = "/data/CARGA HORARIA 2026-1 Oficial.xlsx";
 export const EXCEL_TEACHERS_FILE = "/data/Tabla de Encuesta Docente en Excel.xlsx";
+
