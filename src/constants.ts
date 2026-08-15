@@ -20,7 +20,8 @@ export const DAY_NAME: Record<DayCode, string> = {
   SA: "Sabado",
 };
 
-export const HOURS = Array.from({ length: 15 }, (_, i) => i + 8);
+/** Ventana horaria minima visible en la grilla; se expande segun params y cursos elegidos. */
+export const BASE_HOUR_RANGE = { from: 8, to: 22 };
 export const COLORS = Array.from({ length: 14 }, (_, i) => `color-${i}`);
 export const DOT_COLORS = [
   "#3b82f6",

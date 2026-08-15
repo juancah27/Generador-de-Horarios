@@ -5,10 +5,10 @@ import {
   DAYS,
   DEFAULT_PARAMS,
   DOT_COLORS,
-  HOURS,
   RECOMMENDED,
 } from "./constants";
 import { causesViolation, clashReport, getViolators, hardViolationsForSection } from "./conflicts";
+import { layoutBlocks, visibleHours } from "./grid-layout";
 import { loadCoursesFromExcel, loadDefaultData, loadTeacherScoresFromExcel } from "./data-service";
 import { runOptimizer, lookupTeacherScore } from "./optimizer";
 import { fillModalFromParams, normalizeParams, readParamsFromModal } from "./params";
@@ -38,11 +38,69 @@ let colorMap: Record<string, string> = {};
 let colorIdx = 0;
 let filter: FilterMode = "all";
 let searchQ = "";
-let lastReport: OptimizerReport | null = null;
+/**
+ * Cursos que el usuario quiere en su horario, incluidos los que el optimizador
+ * no pudo colocar. Sin esto, un curso descartado por un cambio de parametros
+ * desaparecia para siempre de los intentos siguientes.
+ */
+let desiredTargets: string[] = [];
 let courseNameLookup: Record<string, string> = {};
 let panelState: { sidebar: boolean; summary: boolean } = { sidebar: true, summary: true };
 let params: ScheduleParams = loadParamsState();
 let notifTimer = 0;
+
+const SELECTED_KEY = "fiis_selected";
+
+/** Alto de fila de la grilla. Vive en `--row-h` (styles.css) para no duplicar el valor. */
+function rowHeight(): number {
+  const raw = getComputedStyle(document.documentElement).getPropertyValue("--row-h");
+  return parseFloat(raw) || 44;
+}
+
+/** Guarda solo curso -> seccion; las clases se rehidratan desde `coursesData`. */
+function saveSelectedState(): void {
+  try {
+    const map: Record<string, string> = {};
+    for (const [course, sec] of Object.entries(selected)) {
+      if (sec.secId) map[course] = sec.secId;
+    }
+    localStorage.setItem(SELECTED_KEY, JSON.stringify(map));
+  } catch {
+    // Ignore storage errors
+  }
+}
+
+/**
+ * Rehidrata el horario guardado.
+ * Devuelve true si existia estado guardado — incluso vacio — para no
+ * regenerar automaticamente encima de un horario que el usuario limpio.
+ */
+function restoreSelectedState(): boolean {
+  let map: Record<string, string>;
+  try {
+    const raw = localStorage.getItem(SELECTED_KEY);
+    if (!raw) return false;
+    map = JSON.parse(raw) as Record<string, string>;
+  } catch {
+    return false;
+  }
+
+  selected = {};
+  colorMap = {};
+  colorIdx = 0;
+
+  for (const [savedName, secId] of Object.entries(map)) {
+    const course = resolveCourseName(savedName);
+    const sec = coursesData[course]?.[secId];
+    if (!sec) continue;
+    selected[course] = { ...sec, secId };
+    colorMap[course] = COLORS[colorIdx % COLORS.length];
+    colorIdx++;
+  }
+
+  desiredTargets = Object.keys(selected);
+  return true;
+}
 
 function loadParamsState(): ScheduleParams {
   try {
@@ -135,7 +193,7 @@ function getTeacherScore(docente: string): number | null {
 }
 
 function scoreClass(score: number | null): string {
-  if (!score) return "";
+  if (score === null) return "";
   if (score >= 17) return "score-high";
   if (score >= 15) return "score-mid";
   return "score-low";
@@ -266,7 +324,7 @@ function showTooltip(event: MouseEvent, block: { course: string; sec: SectionDat
   tooltip.innerHTML =
     `<div class="tooltip-title">${block.course}</div>` +
     `<div class="tooltip-row">Docente: <span>${block.sec.docente}</span></div>` +
-    (teacherScore ? `<div class="tooltip-row">★ <span style="color:#4ade80">${teacherScore.toFixed(3)}</span></div>` : "") +
+    (teacherScore !== null ? `<div class="tooltip-row">★ <span style="color:#4ade80">${teacherScore.toFixed(3)}</span></div>` : "") +
     `<div class="tooltip-row">Sección: <span>${block.sec.secId ?? "-"}</span></div>` +
     `<div class="tooltip-row">${block.cls.inicio}:00-${block.cls.fin}:00 [${block.cls.tipo}]</div>` +
     (issues.length ? `<div style="color:#fcd34d;font-size:10px;margin-top:4px">⚠ ${issues.join(" · ")}</div>` : "") +
@@ -314,7 +372,7 @@ function updateSummary(): void {
   const avgColor = (average ?? 0) >= 17 ? "#4ade80" : (average ?? 0) >= 15 ? "#fcd34d" : "#f87171";
   let html =
     '<div class="score-avg"><div class="label">Promedio docentes</div>' +
-    `<div class="value" style="color:${avgColor}">${average ? average.toFixed(2) : "—"}</div>` +
+    `<div class="value" style="color:${avgColor}">${average !== null ? average.toFixed(2) : "—"}</div>` +
     '<div class="sub">sobre 20 puntos</div></div>' +
     `<div class="total-hours"><span class="label">Total horas/semana</span><span class="value">${totalHours()}h</span></div>`;
 
@@ -342,7 +400,7 @@ function updateSummary(): void {
       `<div class="sci-detail">${sec.clases
         .map((c) => `${DAY_NAME[String(c.dia).trim() as DayCode] ?? c.dia} ${c.inicio}-${c.fin} [${c.tipo}]`)
         .join(" | ")}</div>` +
-      (sc ? `<div class="sci-score" style="color:${sc >= 17 ? "#4ade80" : sc >= 15 ? "#fcd34d" : "#f87171"}">★ ${sc.toFixed(3)} / 20</div>` : "") +
+      (sc !== null ? `<div class="sci-score" style="color:${sc >= 17 ? "#4ade80" : sc >= 15 ? "#fcd34d" : "#f87171"}">★ ${sc.toFixed(3)} / 20</div>` : "") +
       clashes.map((m) => `<div style="color:var(--danger);font-size:10px;margin-top:2px">⛔ ${m}</div>`).join("") +
       issues.map((m) => `<div style="color:#fcd34d;font-size:10px;margin-top:1px">⚠ ${m}</div>`).join("") +
       "</div>";
@@ -365,26 +423,10 @@ function renderGrid(): void {
 
   body.innerHTML = "";
   const bad = getViolators(selected, params);
-  const blocks: Record<
-    string,
-    Array<{ course: string; sec: SectionData; color: string; isBad: boolean; cls: { tipo: string; inicio: number; fin: number } }>
-  > = {};
+  const blocks = layoutBlocks(selected, colorMap, bad);
+  const rowH = rowHeight();
 
-  for (const [course, sec] of Object.entries(selected)) {
-    for (const cls of sec.clases) {
-      const key = `${String(cls.dia).trim()}-${cls.inicio}`;
-      if (!blocks[key]) blocks[key] = [];
-      blocks[key].push({
-        course,
-        sec,
-        color: colorMap[course] ?? "color-0",
-        isBad: bad.has(course),
-        cls: { tipo: cls.tipo, inicio: cls.inicio, fin: cls.fin },
-      });
-    }
-  }
-
-  for (const hour of HOURS) {
+  for (const hour of visibleHours(params, selected)) {
     const label = document.createElement("div");
     label.className = "time-label";
     label.textContent = `${hour}:00`;
@@ -396,33 +438,30 @@ function renderGrid(): void {
       cell.className = "grid-cell";
       if (params.freeDays.includes(day)) cell.style.background = "rgba(16,185,129,.025)";
 
-      const key = `${day}-${hour}`;
-      if (blocks[key]) {
-        const total = blocks[key].length;
-        blocks[key].forEach((block, idx) => {
-          const duration = block.cls.fin - block.cls.inicio;
-          const el = document.createElement("div");
-          el.className = `class-block ${block.color}${block.isBad ? " conflict-block" : ""}`;
-          el.style.top = "2px";
-          el.style.height = `${duration * 44 - 4}px`;
+      for (const block of blocks[`${day}-${hour}`] ?? []) {
+        const duration = block.cls.fin - block.cls.inicio;
+        const el = document.createElement("div");
+        el.className = `class-block ${block.color}${block.isBad ? " conflict-block" : ""}`;
+        el.style.top = `${(block.cls.inicio - hour) * rowH + 2}px`;
+        el.style.height = `${duration * rowH - 4}px`;
 
-          if (total > 1) {
-            el.style.left = `${(idx * (96 / total)) + 2}%`;
-            el.style.right = `${((total - 1 - idx) * (96 / total)) + 2}%`;
-          }
+        if (block.lanes > 1) {
+          const width = 96 / block.lanes;
+          el.style.left = `${block.lane * width + 2}%`;
+          el.style.right = `${(block.lanes - 1 - block.lane) * width + 2}%`;
+        }
 
-          const shortName = block.course.length > 25 ? `${block.course.slice(0, 23)}…` : block.course;
-          const score = getTeacherScore(block.sec.docente);
-          el.innerHTML =
-            `<div class="cb-course">${shortName}</div>` +
-            `<div class="cb-info">${block.sec.docente.split(",")[0]}</div>` +
-            `<div class="cb-type">${block.cls.tipo} · ${block.sec.secId ?? "-"}${score ? ` · ★${score.toFixed(1)}` : ""}</div>`;
-          el.addEventListener("mouseenter", (event) => showTooltip(event as MouseEvent, block));
-          el.addEventListener("mousemove", (event) => moveTooltip(event as MouseEvent));
-          el.addEventListener("mouseleave", hideTooltip);
-          el.addEventListener("click", () => removeCourse(block.course));
-          cell.appendChild(el);
-        });
+        const shortName = block.course.length > 25 ? `${block.course.slice(0, 23)}…` : block.course;
+        const score = getTeacherScore(block.sec.docente);
+        el.innerHTML =
+          `<div class="cb-course">${shortName}</div>` +
+          `<div class="cb-info">${block.sec.docente.split(",")[0]}</div>` +
+          `<div class="cb-type">${block.cls.tipo} · ${block.sec.secId ?? "-"}${score !== null ? ` · ★${score.toFixed(1)}` : ""}</div>`;
+        el.addEventListener("mouseenter", (event) => showTooltip(event as MouseEvent, block));
+        el.addEventListener("mousemove", (event) => moveTooltip(event as MouseEvent));
+        el.addEventListener("mouseleave", hideTooltip);
+        el.addEventListener("click", () => removeCourse(block.course));
+        cell.appendChild(el);
       }
 
       body.appendChild(cell);
@@ -430,6 +469,7 @@ function renderGrid(): void {
   }
 
   badge.style.display = bad.size ? "block" : "none";
+  saveSelectedState();
   updateMetricsBar();
   updateSummary();
   updateHeader();
@@ -445,6 +485,7 @@ function selectSection(courseName: string, secId: string): void {
   }
 
   selected[courseName] = { ...sec, secId };
+  if (!desiredTargets.includes(courseName)) desiredTargets.push(courseName);
   renderGrid();
 
   const bad = getViolators(selected, params);
@@ -457,6 +498,7 @@ function selectSection(courseName: string, secId: string): void {
 function removeCourse(courseName: string): void {
   delete selected[courseName];
   delete colorMap[courseName];
+  desiredTargets = desiredTargets.filter((c) => c !== courseName);
   renderGrid();
   showNotif(`Eliminado: ${courseName.slice(0, 30)}`, "warning");
 }
@@ -465,6 +507,7 @@ function clearAll(): void {
   selected = {};
   colorMap = {};
   colorIdx = 0;
+  desiredTargets = [];
   renderGrid();
   showNotif("Horario limpiado", "warning");
 }
@@ -531,7 +574,7 @@ function renderCourseList(): void {
             '<div class="sec-top">' +
             `<span class="sec-label">Sec. ${sid}</span>` +
             `<span class="teacher-name">${sec.docente.includes("NN") ? "Por asignar" : sec.docente.split(",")[0]}</span>` +
-            (sc ? `<span class="teacher-score ${scoreClass(sc)}">★${sc.toFixed(1)}</span>` : "") +
+            (sc !== null ? `<span class="teacher-score ${scoreClass(sc)}">★${sc.toFixed(1)}</span>` : "") +
             "</div>" +
             `<div class="sec-schedule">${chips}</div>` +
             (warns.length ? `<div style="display:flex;gap:6px;margin-top:3px;flex-wrap:wrap">${warns.join("")}</div>` : "") +
@@ -630,16 +673,40 @@ function closeReport(): void {
   if (modal) modal.classList.remove("open");
 }
 
-function autoSelectBest(): void {
-  const targets: string[] = [];
+/**
+ * Cursos que el optimizador debe intentar colocar.
+ * Si el usuario ya eligio cursos, esos mandan: el generador reordena sus
+ * secciones en vez de reemplazarle el horario por la lista recomendada.
+ */
+function optimizerTargets(): string[] {
+  const userPicked = [...new Set([...Object.keys(selected), ...desiredTargets])].filter(
+    (c) => coursesData[c],
+  );
+  if (userPicked.length) return userPicked;
+
+  const recommended: string[] = [];
   for (const c of RECOMMENDED) {
     const resolved = resolveCourseName(c);
-    if (coursesData[resolved] && !targets.includes(resolved)) targets.push(resolved);
+    if (coursesData[resolved] && !recommended.includes(resolved)) recommended.push(resolved);
   }
-  if (!targets.length) targets.push(...Object.keys(coursesData).slice(0, params.maxCourses));
+  if (recommended.length) return recommended.slice(0, params.maxCourses);
 
-  const report = runOptimizer(targets.slice(0, params.maxCourses), coursesData, teacherScores, params);
-  lastReport = report;
+  return Object.keys(coursesData).slice(0, params.maxCourses);
+}
+
+function autoSelectBest(): void {
+  const targets = optimizerTargets();
+  if (!targets.length) {
+    showNotif("No hay cursos cargados", "warning");
+    return;
+  }
+
+  // El tope de cursos no debe recortar una lista que el propio usuario armo.
+  const effective =
+    targets.length > params.maxCourses ? { ...params, maxCourses: targets.length } : params;
+
+  const report = runOptimizer(targets, coursesData, teacherScores, effective);
+  desiredTargets = targets;
   selected = report.placed;
   colorMap = report.colorMap;
   colorIdx = report.colorIdx;
@@ -684,7 +751,7 @@ function exportSchedule(): void {
 
   for (const [course, sec] of Object.entries(selected)) {
     const sc = getTeacherScore(sec.docente);
-    txt += `📚 ${course}\n   Sec: ${sec.secId ?? "-"} | ${sec.docente}${sc ? ` | ★${sc.toFixed(3)}` : ""}\n`;
+    txt += `📚 ${course}\n   Sec: ${sec.secId ?? "-"} | ${sec.docente}${sc !== null ? ` | ★${sc.toFixed(3)}` : ""}\n`;
     sec.clases.forEach((c) => {
       const d = DAY_NAME[String(c.dia).trim() as DayCode] ?? c.dia;
       txt += `   ${d} ${c.inicio}:00-${c.fin}:00 [${c.tipo}]\n`;
@@ -696,7 +763,7 @@ function exportSchedule(): void {
 
   if (m) {
     const avg = avgScore();
-    txt += `RESUMEN:\n  Promedio: ${avg ? avg.toFixed(2) : "N/A"}/20 | Horas: ${totalHours()}h/sem\n`;
+    txt += `RESUMEN:\n  Promedio: ${avg !== null ? avg.toFixed(2) : "N/A"}/20 | Horas: ${totalHours()}h/sem\n`;
     txt += `  Días libres: ${m.freeDays.map((d) => DAY_NAME[d]).join(", ") || "Ninguno"}\n`;
     txt += `  Cruces T/T: ${m.ttOv}h | T/P: ${m.tpOv}h\n`;
   }
@@ -754,6 +821,8 @@ async function init(): Promise<void> {
 
   refreshCourseLookup();
   updateTotalCoursesCount();
+
+  const restored = restoreSelectedState();
   renderCourseList();
   renderGrid();
 
@@ -761,7 +830,10 @@ async function init(): Promise<void> {
   else if (loadedCourses) showNotif("Cursos cargados desde Excel", "success");
   else if (loadedScores) showNotif("Notas de docentes cargadas desde Excel", "success");
 
-  window.setTimeout(autoSelectBest, 150);
+  // Solo genera automatico en el primer arranque; si habia horario guardado, se respeta.
+  const restoredCount = Object.keys(selected).length;
+  if (!restored) window.setTimeout(autoSelectBest, 150);
+  else if (restoredCount) showNotif(`Horario restaurado · ${restoredCount} cursos`, "success");
 }
 
 window.autoSelectBest = autoSelectBest;

@@ -4,8 +4,11 @@ Aplicacion web para organizar horarios de cursos FIIS con:
 
 - Reglas de cruce configurables (T/T, T/P y P/P bloqueado).
 - Parametros estrictos de horario (hora minima, hora maxima, dias libres).
-- Optimizador automatico con priorizacion por docente, dias libres, compactacion o horario tarde.
+- Optimizador con backtracking: busca la combinacion de secciones que coloca la
+  mayor cantidad de cursos, no la primera que encuentra.
+- Priorizacion por docente, dias libres, compactacion o horario tarde.
 - Carga de cursos y notas docentes desde archivos Excel.
+- El horario armado se guarda en el navegador y se restaura al volver a entrar.
 
 ## Stack
 
@@ -20,9 +23,14 @@ Aplicacion web para organizar horarios de cursos FIIS con:
 - `src/main.ts`: orquestacion UI + estado de aplicacion.
 - `src/data-service.ts`: carga de JSON base y Excel.
 - `src/conflicts.ts`: motor de cruces y violaciones.
-- `src/optimizer.ts`: seleccion automatica y ranking.
+- `src/optimizer.ts`: busqueda con backtracking y ranking de secciones.
+- `src/grid-layout.ts`: carriles y rango horario de la grilla semanal.
 - `src/params.ts`: normalizacion y lectura/escritura de parametros.
 - `public/data/`: datasets JSON y archivos Excel usados por la app.
+
+## Tests
+
+- `npm test` (Vitest). Cubre el optimizador y el layout de la grilla.
 
 ## Ejecutar en local
 
@@ -60,4 +68,13 @@ Si no encuentra algun Excel, usa los JSON por defecto en `public/data/`.
 ## Parametros
 
 Los parametros del optimizador se validan y se guardan en `localStorage` (`fiis_params`) para mantener tu configuracion entre sesiones.
+
+Tambien se guardan en `localStorage`:
+
+- `fiis_selected`: los cursos y secciones de tu horario.
+- `fiis_panel_state`: que paneles laterales dejaste abiertos.
+
+El generador automatico solo corre solo la primera vez. Despues respeta lo que
+tengas guardado, y al pulsar **Mejor horario automatico** trabaja sobre los
+cursos que vos elegiste en vez de reemplazarlos por la lista recomendada.
 
