@@ -35,22 +35,37 @@ Aplicacion web para organizar horarios de cursos FIIS con:
 
 ## Interfaz
 
-Los colores viven en `:root` de `src/styles.css`. Dos reglas que conviene no
-romper:
+Dos temas, oscuro por defecto, con un conmutador en la cabecera. La eleccion se
+guarda en `localStorage` (`fiis_theme`); si no hay ninguna, se sigue lo que
+pida el sistema. Un script en el `<head>` fija el tema antes del primer
+pintado para que no haya destello.
 
+Los colores viven en `:root` (oscuro) y `:root[data-theme="light"]` (claro) de
+`src/styles.css`. Tres reglas que conviene no romper:
+
+- El tema claro solo redefine color. Tamaños, radios y espaciados son unicos:
+  los dos temas son el mismo diseño con distinta piel.
 - Los tokens `--accent`, `--danger` y `--accent3` son para bordes y fondos
   translucidos. Para un relleno solido con texto blanco encima van
   `--accent-fill`, `--accent2-fill` y `--danger-fill`: los de marca se quedan
   en 3.7:1 y no llegan al minimo AA de 4.5:1.
 - El texto secundario usa `--muted`; los estados usan `--ok-text`,
-  `--warn-text` y `--danger-text`, que son las variantes que pasan AA sobre las
-  tres superficies.
+  `--warn-text` y `--danger-text`.
 
-`src/tokens.test.ts` calcula los ratios leyendo el CSS, asi que bajar el brillo
-de un token rompe el test antes que la legibilidad.
+Los 14 colores de curso se declaran una sola vez, como `--c` en cada clase
+`.color-N`. El bloque de la grilla deriva fondo, borde y texto con `color-mix`
+contra `--surface` y `--text`, asi que el mismo curso conserva su color en los
+dos temas sin listar la paleta dos veces. Los porcentajes de mezcla
+(`--c-bg`, `--c-border`, `--c-text`) cambian con el tema porque la direccion de
+la mezcla se invierte.
+
+`src/tokens.test.ts` recalcula todos los ratios leyendo el CSS, en ambos temas,
+asi que bajar el brillo de un token rompe el test antes que la legibilidad.
 
 Los tamaños de fuente son siete tokens (`--fs-2xs` a `--fs-2xl`). El test
 tambien falla si aparece un `font-size` fuera de la escala.
+
+`color-mix` necesita Chrome 111, Safari 16.2 o Firefox 113 en adelante.
 
 La app es utilizable con teclado: los cursos, las secciones y los bloques de la
 grilla son `<button>`, hay anillo de foco en todo control, los modales atrapan
@@ -59,10 +74,10 @@ laterales pasan a ser cajones y la columna de horas de la grilla queda fija.
 
 ## Tests
 
-- `npm test` (Vitest). 127 tests sobre el optimizador, el motor de cruces, la
+- `npm test` (Vitest). 198 tests sobre el optimizador, el motor de cruces, la
   malla curricular, los filtros del catalogo, el layout de la grilla, el parser
   de Excel, la normalizacion de parametros, los utilitarios y el contraste de
-  la paleta.
+  la paleta en los dos temas.
 
 ## Ejecutar en local
 
@@ -142,6 +157,7 @@ Tambien se guardan en `localStorage`:
 
 - `fiis_selected`: los cursos y secciones de tu horario.
 - `fiis_panel_state`: que paneles laterales dejaste abiertos.
+- `fiis_theme`: si elegiste tema claro u oscuro.
 
 El generador automatico solo corre solo la primera vez. Despues respeta lo que
 tengas guardado, y al pulsar **Mejor horario automatico** trabaja sobre los

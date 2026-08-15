@@ -10,6 +10,19 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/src/styles.css" />
+  <script>
+    // Fija el tema antes del primer pintado. Sin esto se ve un destello del
+    // tema equivocado mientras carga el modulo principal.
+    (function () {
+      try {
+        var saved = localStorage.getItem("fiis_theme");
+        var dark = saved ? saved === "dark" : !window.matchMedia("(prefers-color-scheme: light)").matches;
+        document.documentElement.dataset.theme = dark ? "dark" : "light";
+      } catch (e) {
+        document.documentElement.dataset.theme = "dark";
+      }
+    })();
+  </script>
 </head>
 <body>
 
@@ -44,6 +57,11 @@
   <symbol id="i-rotate" viewBox="0 0 24 24"><path d="M4 10a8 8 0 1 1 1.5 6"/><path d="M4 5v5h5"/></symbol>
   <symbol id="i-toggle" viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="10" rx="5"/><circle cx="16" cy="12" r="2.5"/></symbol>
   <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21v-6"/><path d="M8.5 4h7l-1 6 2.5 2v3H7v-3l2.5-2z"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M3 12h2M19 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
+  <symbol id="i-award" viewBox="0 0 24 24"><circle cx="12" cy="9" r="5"/><path d="m9 13.5-1 7.5 4-2.5 4 2.5-1-7.5"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v4.5l3 1.8"/></symbol>
+  <symbol id="i-layers" viewBox="0 0 24 24"><path d="m12 3 8 4.5-8 4.5-8-4.5z"/><path d="m4 12.5 8 4.5 8-4.5"/></symbol>
 </svg>
 
 <a class="skip-link" href="#horario">Saltar al horario</a>
@@ -55,6 +73,11 @@
     <span class="stat-chip"><span class="dot dot-total" aria-hidden="true"></span><span id="total-courses-count">136 cursos</span></span>
     <span class="stat-chip"><span class="dot dot-sel" aria-hidden="true"></span><span id="selected-count">0 seleccionados</span></span>
   </div>
+  <button type="button" class="theme-toggle" id="theme-toggle" aria-pressed="false">
+    <svg class="ic ic-moon" aria-hidden="true"><use href="#i-moon"/></svg>
+    <svg class="ic ic-sun" aria-hidden="true"><use href="#i-sun"/></svg>
+    <span class="sr-only">Cambiar entre tema claro y oscuro</span>
+  </button>
 </header>
 
 <div class="app">

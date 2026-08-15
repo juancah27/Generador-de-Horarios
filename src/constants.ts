@@ -26,24 +26,24 @@ export const COLORS = Array.from({ length: 14 }, (_, i) => `color-${i}`);
 
 /**
  * Punto de color de cada curso en el panel de resumen.
- * Espeja el `border-color` de las clases `.color-N` de styles.css: si cambia
- * una lista hay que cambiar la otra, y `tokens.test.ts` verifica que coincidan.
+ * Espeja el `--c` de las clases `.color-N` de styles.css: si cambia una lista
+ * hay que cambiar la otra, y `tokens.test.ts` verifica que coincidan.
  */
 export const DOT_COLORS = [
-  "#3b82f6",
+  "#e94ba0",
+  "#22d3ee",
+  "#f5b31b",
   "#8b5cf6",
   "#10b981",
-  "#f59e0b",
-  "#ec4899",
-  "#06b6d4",
-  "#f97316",
-  "#eab308",
+  "#4c8dff",
+  "#fb7534",
   "#14b8a6",
-  "#a855f7",
-  "#ef4444",
-  "#6366f1",
-  "#22c55e",
-  "#fbbf24",
+  "#fb7185",
+  "#7c6cff",
+  "#84cc16",
+  "#38bdf8",
+  "#d946ef",
+  "#f59e0b",
 ];
 
 export const T_TYPES = ["T"];

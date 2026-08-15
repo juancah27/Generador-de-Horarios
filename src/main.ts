@@ -62,6 +62,31 @@ let params: ScheduleParams = loadParamsState();
 let notifTimer = 0;
 
 const SELECTED_KEY = "fiis_selected";
+const THEME_KEY = "fiis_theme";
+
+/**
+ * Tema activo. El valor inicial ya lo fijo el script inline de index.html
+ * antes del primer pintado; aca solo se lee y se alterna.
+ */
+function currentTheme(): "dark" | "light" {
+  return document.documentElement.dataset.theme === "light" ? "light" : "dark";
+}
+
+function applyTheme(theme: "dark" | "light"): void {
+  document.documentElement.dataset.theme = theme;
+  const btn = document.getElementById("theme-toggle");
+  btn?.setAttribute("aria-pressed", String(theme === "light"));
+  btn?.setAttribute("title", theme === "light" ? "Cambiar a tema oscuro" : "Cambiar a tema claro");
+  try {
+    localStorage.setItem(THEME_KEY, theme);
+  } catch {
+    // Ignore storage errors
+  }
+}
+
+function toggleTheme(): void {
+  applyTheme(currentTheme() === "dark" ? "light" : "dark");
+}
 
 /** Alto de fila de la grilla. Vive en `--row-h` (styles.css) para no duplicar el valor. */
 function rowHeight(): number {
@@ -410,22 +435,45 @@ function updateHeader(): void {
   if (selectedCount) selectedCount.textContent = `${Object.keys(selected).length} seleccionados`;
 }
 
+/** Creditos del horario, o null si no hay malla cargada. */
+function scheduleCredits(): { total: number; byKind: Record<string, number>; sinMalla: number } | null {
+  if (!curriculum) return null;
+  return creditsByKind(curriculum, Object.keys(selected).map(courseCode));
+}
+
+/** Las tres cifras del horario con el mismo peso: promedio, horas y creditos. */
+function metricsBlock(): string {
+  const average = avgScore();
+  const credits = scheduleCredits();
+
+  const card = (cls: string, iconName: string, value: string, label: string, valueClass = "") =>
+    `<div class="metric-card ${cls}">${icon(iconName)}` +
+    `<span class="value ${valueClass}">${value}</span>` +
+    `<span class="label">${label}</span></div>`;
+
+  return (
+    '<div class="metrics">' +
+    card("metric-avg", "award", average !== null ? average.toFixed(2) : "—", "Promedio", scoreValueClass(average)) +
+    card("metric-hours", "clock", `${totalHours()}h`, "Semana") +
+    (credits ? card("metric-credits", "layers", String(credits.total), "Créditos") : "") +
+    "</div>"
+  );
+}
+
 /**
- * Creditos del horario armado, separados por tipo de curso, mas los requisitos
- * de grado como referencia. El horario es de un ciclo: los minimos de egreso
- * son de toda la carrera, por eso se muestran aparte y no como progreso.
+ * Desglose de creditos por tipo y los requisitos de grado como referencia.
+ * El horario es de un ciclo: los minimos de egreso son de toda la carrera,
+ * por eso se muestran aparte y no como progreso.
  */
 function creditsBlock(): string {
-  if (!curriculum) return "";
-
-  const codes = Object.keys(selected).map(courseCode);
-  const { total, byKind, sinMalla } = creditsByKind(curriculum, codes);
+  const credits = scheduleCredits();
+  if (!curriculum || !credits) return "";
 
   const chips = (["Obligatorio", "Electivo", "Complementario"] as const)
-    .filter((kind) => byKind[kind] > 0)
+    .filter((kind) => credits.byKind[kind] > 0)
     .map(
       (kind) =>
-        `<span class="malla-tag kind-${kind.toLowerCase()}">${kindLabel(kind)} ${byKind[kind]} cr</span>`,
+        `<span class="malla-tag kind-${kind.toLowerCase()}">${kindLabel(kind)} ${credits.byKind[kind]} cr</span>`,
     )
     .join("");
 
@@ -437,13 +485,14 @@ function creditsBlock(): string {
     )
     .join("");
 
+  if (!chips && !credits.sinMalla && !requisitos) return "";
+
   return (
     '<div class="credits-box">' +
-    '<div class="credits-top"><span class="label">Créditos del horario</span>' +
-    `<span class="value">${total}</span></div>` +
+    '<p class="credits-title">Créditos por tipo</p>' +
     (chips ? `<div class="credits-chips">${chips}</div>` : "") +
-    (sinMalla
-      ? `<div class="credits-note">${sinMalla} curso${sinMalla > 1 ? "s" : ""} fuera de la malla (otra carrera)</div>`
+    (credits.sinMalla
+      ? `<p class="credits-note">${credits.sinMalla} curso${credits.sinMalla > 1 ? "s" : ""} fuera de la malla (otra carrera)</p>`
       : "") +
     (requisitos
       ? `<details class="req-details"><summary>Requisitos para egresar</summary>${requisitos}</details>`
@@ -469,19 +518,13 @@ function updateSummary(): void {
     return;
   }
 
-  const average = avgScore();
-  let html =
-    '<div class="score-avg"><div class="label">Promedio docentes</div>' +
-    `<div class="value ${scoreValueClass(average)}">${average !== null ? average.toFixed(2) : "—"}</div>` +
-    '<div class="sub">sobre 20 puntos</div></div>' +
-    `<div class="total-hours"><span class="label">Horas por semana</span><span class="value">${totalHours()}h</span></div>` +
-    creditsBlock();
+  let html = metricsBlock() + creditsBlock();
 
   for (const [course, sec] of selectedEntries) {
     const sc = getTeacherScore(sec.docente);
     const isBad = bad.has(course);
     const cn = colorMap[course];
-    const dot = DOT_COLORS[cn ? Number(cn.split("-")[1]) : 0] ?? "#3b82f6";
+    const dot = DOT_COLORS[cn ? Number(cn.split("-")[1]) : 0] ?? DOT_COLORS[0];
     const issues = hardViolationsForSection(sec, params);
     const clashes: string[] = [];
 
@@ -1037,6 +1080,7 @@ function wireControls(): void {
     closeReport();
     openOptimizer();
   });
+  on("theme-toggle", toggleTheme);
   on("toggle-sidebar-btn", () => togglePanel("sidebar"));
   on("reopen-sidebar-btn", () => togglePanel("sidebar"));
   on("toggle-summary-btn", () => togglePanel("summary"));
@@ -1072,6 +1116,7 @@ async function init(): Promise<void> {
     panelState.summary = false;
   }
   applyPanelState();
+  applyTheme(currentTheme());
   fillModalFromParams(params);
   wireControls();
 

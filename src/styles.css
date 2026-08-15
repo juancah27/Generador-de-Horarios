@@ -1,51 +1,76 @@
 /* =========================================================================
    TOKENS
-   Los grises de texto se fijaron midiendo contraste contra los tres fondos
-   (--bg, --surface, --surface2), no a ojo. El valor anterior de --muted
-   (#64748b) daba 3.33:1 sobre --surface2 y reprobaba WCAG AA en todo el
-   texto secundario de la app.
+
+   Dos temas. El oscuro es el de por defecto y el que define el caracter:
+   carbon profundo con un sesgo navy, paneles separados por elevacion suave
+   en vez de bordes duros. El claro es su equivalente exacto, no una idea
+   aparte: mismos roles, mismos nombres, distintos valores.
+
+   Reglas que no conviene romper:
+   - Todo color de texto se midio contra las superficies sobre las que cae.
+     `tokens.test.ts` recalcula los ratios leyendo este archivo, en ambos
+     temas, y falla si alguno baja de 4.5:1 (3:1 para grafismo).
+   - Los tonos de marca (--accent, --danger) son para bordes y fondos
+     translucidos. Para relleno solido con texto blanco van los -fill.
    ========================================================================= */
 :root {
-  /* Superficies */
-  --bg: #0a0e1a;
-  --surface: #111827;
-  --surface2: #1a2236;
-  --border: #1e2d45;
-  --border-soft: rgba(30, 45, 69, 0.55);
+  color-scheme: dark;
 
-  /* Marca: bordes, hairlines y fondos translucidos */
-  --accent: #3b82f6;
-  --accent2: #6366f1;
+  /* Superficies: carbon con sesgo navy, separadas por poca distancia. */
+  --bg: #14161c;
+  --surface: #1b1e26;
+  --surface2: #22262f;
+  --surface3: #2b303b;
+  --border: #2e3440;
+  --border-soft: rgba(255, 255, 255, 0.06);
+
+  /* Marca */
+  --accent: #4c8dff;
+  --accent2: #7c6cff;
   --accent3: #10b981;
-  --warn: #f59e0b;
-  --danger: #ef4444;
+  --warn: #f0a92e;
+  --danger: #f0555f;
 
-  /*
-   * Rellenos solidos que llevan texto blanco encima. Los tonos de marca de
-   * arriba no alcanzan: blanco sobre #3b82f6 da 3.68:1 y sobre #ef4444 da
-   * 3.76:1, ambos por debajo de AA. Estos son los mismos colores un paso
-   * mas oscuros.
-   */
   --accent-fill: #2563eb;
-  --accent2-fill: #4f46e5;
-  --danger-fill: #dc2626;
-  --decor: #64748b;  /* grafismo no textual: iconos de vacio, barras de scroll */
+  --accent2-fill: #5b46e5;
+  --danger-fill: #d43a48;
+  --decor: #78828f;
 
-  /* Texto. Las variantes -text son las unicas que pasan AA sobre --surface2. */
-  --text: #e2e8f0;
-  --muted: #94a3b8;
-  --accent-text: #60a5fa;
-  --ok-text: #34d399;
-  --warn-text: #fcd34d;
-  --danger-text: #f87171;
+  /* Texto */
+  --text: #e7eaef;
+  --muted: #9aa4b4;
+  --accent-text: #7fb0ff;
+  --ok-text: #45d4a0;
+  --warn-text: #f5c76a;
+  --danger-text: #ff8a90;
 
   /* Dias */
-  --lunes: #93c5fd;
-  --martes: #c4b5fd;
-  --miercoles: #67e8f9;
-  --jueves: #6ee7b7;
-  --viernes: #fcd34d;
-  --sabado: #f9a8d4;
+  --lunes: #8fb8ff;
+  --martes: #c3aeff;
+  --miercoles: #6fdcf0;
+  --jueves: #63d9a8;
+  --viernes: #f5c76a;
+  --sabado: #ff9ec7;
+
+  /*
+   * Elevacion. El tema oscuro se apoya en sombra, no en borde: los paneles
+   * se despegan del fondo sin trazar una linea dura en cada limite.
+   */
+  --sh-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --sh-2: 0 4px 14px rgba(0, 0, 0, 0.4);
+  --sh-3: 0 12px 32px rgba(0, 0, 0, 0.5);
+  --sh-4: 0 28px 70px rgba(0, 0, 0, 0.62);
+  --ring: rgba(76, 141, 255, 0.2);
+
+  /*
+   * Mezcla de los bloques de curso. El color del curso se combina con la
+   * superficie para el fondo y con el texto para la letra. Los porcentajes
+   * cambian con el tema porque la direccion de la mezcla se invierte: sobre
+   * panel oscuro la letra se aclara, sobre panel claro se oscurece.
+   */
+  --c-bg: 18%;
+  --c-border: 55%;
+  --c-text: 70%;
 
   /* Tipografia: 7 pasos. Antes habia 11 tamanos sueltos entre 9 y 40px. */
   --fs-2xs: 10px;  /* solo datos densos: codigos, chips, horas de la grilla */
@@ -66,6 +91,7 @@
   --r-sm: 6px;
   --r-md: 8px;
   --r-lg: 12px;
+  --r-xl: 14px;
   --r-pill: 999px;
 
   --font-sans: 'Space Grotesk', system-ui, sans-serif;
@@ -78,9 +104,60 @@
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-* { margin: 0; padding: 0; box-sizing: border-box; }
+/*
+ * TEMA CLARO
+ * Se aplica cuando el usuario lo elige (data-theme="light") o cuando el
+ * sistema lo pide y el usuario no eligio nada. Solo redefine color: los
+ * tamanos, radios y espaciados son los mismos en los dos temas.
+ */
+:root[data-theme="light"] {
+  color-scheme: light;
 
-html { color-scheme: dark; }
+  --bg: #f4f5f8;
+  --surface: #ffffff;
+  --surface2: #f7f8fa;
+  --surface3: #eceef3;
+  --border: #dfe3ea;
+  --border-soft: rgba(20, 22, 28, 0.07);
+
+  --accent: #2563eb;
+  --accent2: #5b46e5;
+  --accent3: #059669;
+  --warn: #b4700a;
+  --danger: #d43a48;
+
+  --accent-fill: #2563eb;
+  --accent2-fill: #5b46e5;
+  --danger-fill: #c62f3c;
+  --decor: #767f8e;
+
+  --text: #1c1f27;
+  --muted: #5c6472;
+  --accent-text: #1d4ed8;
+  --ok-text: #047857;
+  --warn-text: #92590a;
+  --danger-text: #c62f3c;
+
+  --lunes: #1d4ed8;
+  --martes: #6d28d9;
+  --miercoles: #0e7490;
+  --jueves: #047857;
+  --viernes: #92590a;
+  --sabado: #be1e63;
+
+  --sh-1: 0 1px 2px rgba(20, 22, 28, 0.06);
+  --sh-2: 0 4px 14px rgba(20, 22, 28, 0.08);
+  --sh-3: 0 12px 32px rgba(20, 22, 28, 0.1);
+  --sh-4: 0 28px 70px rgba(20, 22, 28, 0.18);
+  --ring: rgba(37, 99, 235, 0.18);
+
+  /* Sobre panel claro la letra tira al negro: hace falta menos color. */
+  --c-bg: 18%;
+  --c-border: 85%;
+  --c-text: 45%;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
 
 body {
   font-family: var(--font-sans);
@@ -93,12 +170,12 @@ body {
 }
 
 /* Superficies del navegador: tambien son parte del diseno. */
-::selection { background: rgba(96, 165, 250, 0.3); color: #fff; }
+::selection { background: var(--ring); }
 input, select, textarea { caret-color: var(--accent-text); }
 
 /* Numeros que no bailan al actualizarse. */
 .val, .num-input, .course-code, .sec-label, .schedule-chip, .time-label,
-.malla-tag, .score-avg .value, .total-hours .value, .credits-top .value,
+.malla-tag, .metric-card .value, .report-stat .n,
 .req-row span:last-child, .teacher-score {
   font-variant-numeric: tabular-nums;
 }
@@ -160,60 +237,99 @@ h1, h2, h3, h4 { font-weight: 600; }
    HEADER
    ========================================================================= */
 .app-header {
-  background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%);
+  background: var(--surface);
   border-bottom: 1px solid var(--border);
-  padding: var(--sp-3) var(--sp-5);
+  padding: var(--sp-3) var(--sp-4);
   display: flex;
   align-items: center;
-  gap: var(--sp-4);
+  gap: var(--sp-3);
   position: sticky;
   top: 0;
   z-index: 100;
   min-height: var(--header-h);
+  box-shadow: var(--sh-1);
 }
 .logo {
-  background: linear-gradient(135deg, var(--accent-fill), var(--accent2-fill));
+  background: linear-gradient(140deg, var(--accent-fill), var(--accent2-fill));
   border-radius: var(--r-md);
-  padding: var(--sp-1) var(--sp-3);
+  padding: 5px var(--sp-2);
   font-weight: 700;
-  font-size: var(--fs-md);
-  letter-spacing: 0.08em;
+  font-size: var(--fs-sm);
+  letter-spacing: 0.1em;
   color: #fff;
 }
-.app-header h1 { font-size: var(--fs-xl); flex: 1; letter-spacing: -0.02em; }
-.app-header h1 .period { color: var(--muted); font-weight: 400; font-size: var(--fs-md); }
+.app-header h1 { font-size: var(--fs-lg); flex: 1; letter-spacing: -0.015em; font-weight: 600; }
+.app-header h1 .period { color: var(--muted); font-weight: 400; font-size: var(--fs-sm); }
 
 .header-stats { display: flex; gap: var(--sp-2); align-items: center; }
 .stat-chip {
   background: var(--surface2);
   border: 1px solid var(--border);
   border-radius: var(--r-pill);
-  padding: var(--sp-1) var(--sp-3);
-  font-size: var(--fs-sm);
+  padding: 5px var(--sp-3);
+  font-size: var(--fs-xs);
+  color: var(--muted);
   display: flex;
   align-items: center;
-  gap: var(--sp-2);
+  gap: 6px;
   white-space: nowrap;
 }
-.stat-chip .dot { width: 7px; height: 7px; border-radius: 50%; }
+.stat-chip strong { color: var(--text); font-weight: 600; }
+.stat-chip .dot { width: 6px; height: 6px; border-radius: 50%; }
 .dot-total { background: var(--accent); }
 .dot-sel { background: var(--accent3); }
+
+/* Conmutador de tema: sol y luna, uno visible por vez. */
+.theme-toggle {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  border-radius: var(--r-md);
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--muted);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s var(--ease), border-color 0.15s var(--ease), background 0.15s var(--ease);
+}
+.theme-toggle:hover { color: var(--text); border-color: var(--accent); background: var(--surface3); }
+.theme-toggle .ic { position: absolute; transition: opacity 0.2s var(--ease), transform 0.3s var(--ease); }
+.theme-toggle { position: relative; }
+.theme-toggle .ic-sun { opacity: 0; transform: rotate(-90deg) scale(0.6); }
+.theme-toggle .ic-moon { opacity: 1; transform: none; }
+:root[data-theme="light"] .theme-toggle .ic-sun { opacity: 1; transform: none; }
+:root[data-theme="light"] .theme-toggle .ic-moon { opacity: 0; transform: rotate(90deg) scale(0.6); }
 
 /* =========================================================================
    LAYOUT
    ========================================================================= */
-.app { display: flex; height: calc(100vh - var(--header-h)); position: relative; }
+.app {
+  display: flex;
+  gap: var(--sp-3);
+  padding: var(--sp-3);
+  height: calc(100vh - var(--header-h));
+  position: relative;
+  background: var(--bg);
+}
 .app.hide-sidebar .sidebar { display: none; }
 .app.hide-summary .summary-panel { display: none; }
 
-.sidebar {
-  width: 340px;
-  min-width: 340px;
+/* Los tres paneles flotan sobre el fondo: la separacion la da la sombra. */
+.sidebar, .main, .summary-panel {
   background: var(--surface);
-  border-right: 1px solid var(--border);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+  box-shadow: var(--sh-2);
+  overflow: hidden;
+}
+
+.sidebar {
+  width: 336px;
+  min-width: 336px;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
 }
 .sidebar-header {
   padding: var(--sp-3);
@@ -267,7 +383,7 @@ h1, h2, h3, h4 { font-weight: 600; }
   transition: border-color 0.15s var(--ease);
 }
 .search-box input::placeholder { color: var(--muted); }
-.search-box input:focus { outline: none; border-color: var(--accent-text); box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.18); }
+.search-box input:focus { outline: none; border-color: var(--accent-text); box-shadow: 0 0 0 3px var(--ring); }
 .search-icon {
   position: absolute;
   left: var(--sp-3);
@@ -515,7 +631,7 @@ h1, h2, h3, h4 { font-weight: 600; }
 /* =========================================================================
    BARRA DE HERRAMIENTAS
    ========================================================================= */
-.main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+.main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
 
 .toolbar {
   padding: var(--sp-3) var(--sp-4);
@@ -708,11 +824,15 @@ h1, h2, h3, h4 { font-weight: 600; }
   text-align: left;
   border: 1px solid;
   z-index: 2;
+  box-shadow: var(--sh-1);
   transition: transform 0.12s var(--ease), box-shadow 0.12s var(--ease);
+  background: color-mix(in srgb, var(--c) var(--c-bg), var(--surface));
+  border-color: color-mix(in srgb, var(--c) var(--c-border), var(--surface));
+  color: color-mix(in srgb, var(--c) var(--c-text), var(--text));
 }
 .class-block:hover {
   transform: translateY(-1px);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45);
+  box-shadow: var(--sh-2);
   z-index: 10;
 }
 .class-block.conflict-block { border-color: var(--danger); background: rgba(239, 68, 68, 0.2); }
@@ -728,32 +848,38 @@ h1, h2, h3, h4 { font-weight: 600; }
 .cb-info { color: rgba(255, 255, 255, 0.74); line-height: 1.3; }
 .cb-type { font-weight: 700; opacity: 0.92; font-family: var(--font-mono); }
 
-.color-0 { background: rgba(59, 130, 246, 0.2); border-color: #3b82f6; color: #bfdbfe; }
-.color-1 { background: rgba(139, 92, 246, 0.2); border-color: #8b5cf6; color: #ddd6fe; }
-.color-2 { background: rgba(16, 185, 129, 0.2); border-color: #10b981; color: #a7f3d0; }
-.color-3 { background: rgba(245, 158, 11, 0.2); border-color: #f59e0b; color: #fde68a; }
-.color-4 { background: rgba(236, 72, 153, 0.2); border-color: #ec4899; color: #fbcfe8; }
-.color-5 { background: rgba(6, 182, 212, 0.2); border-color: #06b6d4; color: #a5f3fc; }
-.color-6 { background: rgba(249, 115, 22, 0.2); border-color: #f97316; color: #fed7aa; }
-.color-7 { background: rgba(234, 179, 8, 0.2); border-color: #eab308; color: #fef08a; }
-.color-8 { background: rgba(20, 184, 166, 0.2); border-color: #14b8a6; color: #99f6e4; }
-.color-9 { background: rgba(168, 85, 247, 0.2); border-color: #a855f7; color: #e9d5ff; }
-.color-10 { background: rgba(239, 68, 68, 0.2); border-color: #ef4444; color: #fecaca; }
-.color-11 { background: rgba(99, 102, 241, 0.2); border-color: #6366f1; color: #c7d2fe; }
-.color-12 { background: rgba(34, 197, 94, 0.2); border-color: #22c55e; color: #bbf7d0; }
-.color-13 { background: rgba(251, 191, 36, 0.2); border-color: #fbbf24; color: #fef3c7; }
+/*
+ * Paleta de cursos. Cada clase declara un solo color en `--c` y deriva las
+ * tres capas con color-mix contra --surface y --text, que cambian con el
+ * tema. Asi un mismo curso mantiene su identidad de color en claro y en
+ * oscuro sin listar 14 colores dos veces.
+ *
+ * `tokens.test.ts` replica estas mezclas y verifica el contraste resultante
+ * en ambos temas.
+ */
+.color-0 { --c: #e94ba0; }  /* magenta */
+.color-1 { --c: #22d3ee; }  /* cian */
+.color-2 { --c: #f5b31b; }  /* oro */
+.color-3 { --c: #8b5cf6; }  /* violeta */
+.color-4 { --c: #10b981; }  /* esmeralda */
+.color-5 { --c: #4c8dff; }  /* azul */
+.color-6 { --c: #fb7534; }  /* naranja */
+.color-7 { --c: #14b8a6; }  /* verde azulado */
+.color-8 { --c: #fb7185; }  /* rosa */
+.color-9 { --c: #7c6cff; }  /* indigo */
+.color-10 { --c: #84cc16; } /* lima */
+.color-11 { --c: #38bdf8; } /* celeste */
+.color-12 { --c: #d946ef; } /* fucsia */
+.color-13 { --c: #f59e0b; } /* ambar */
 
 /* =========================================================================
    RESUMEN
    ========================================================================= */
 .summary-panel {
-  width: 268px;
-  min-width: 268px;
-  border-left: 1px solid var(--border);
-  background: var(--surface);
+  width: 276px;
+  min-width: 276px;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
 }
 .summary-header {
   padding: var(--sp-3);
@@ -828,32 +954,61 @@ h1, h2, h3, h4 { font-weight: 600; }
 .sci-remove:hover { background: rgba(239, 68, 68, 0.2); color: var(--danger-text); }
 .sci-color-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; }
 
-.score-avg {
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.12), rgba(99, 102, 241, 0.12));
-  border: 1px solid rgba(59, 130, 246, 0.25);
-  border-radius: var(--r-md);
-  padding: var(--sp-3);
+/*
+ * Tarjetas de metrica: promedio, horas y creditos con el mismo peso visual.
+ * Antes el promedio se llevaba una tarjeta grande con degradado y los otros
+ * dos eran filas sueltas; los tres son la misma clase de dato.
+ */
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--sp-2);
   margin-bottom: var(--sp-3);
-  text-align: center;
 }
-.score-avg .label { font-size: var(--fs-xs); color: var(--muted); margin-bottom: 2px; }
-.score-avg .value { font-size: var(--fs-2xl); font-weight: 700; font-family: var(--font-mono); line-height: 1.1; }
-.score-avg .sub { font-size: var(--fs-xs); color: var(--muted); }
-
-.total-hours, .credits-box {
+.metric-card {
   background: var(--surface2);
   border: 1px solid var(--border);
-  border-radius: var(--r-md);
+  border-radius: var(--r-lg);
+  padding: var(--sp-3) var(--sp-2);
+  text-align: center;
+  box-shadow: var(--sh-1);
+}
+.metric-card .ic { color: var(--decor); font-size: 1em; margin-bottom: 3px; }
+.metric-card .value {
+  display: block;
+  font-size: var(--fs-xl);
+  font-weight: 700;
+  font-family: var(--font-mono);
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+.metric-card .label {
+  display: block;
+  font-size: var(--fs-2xs);
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-top: 3px;
+}
+.metric-avg .value { color: var(--accent-text); }
+.metric-hours .value { color: var(--ok-text); }
+.metric-credits .value { color: var(--martes); }
+
+.credits-box {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
   padding: var(--sp-3);
   margin-bottom: var(--sp-3);
 }
-.total-hours { display: flex; justify-content: space-between; align-items: center; }
-.total-hours .label, .credits-top .label { font-size: var(--fs-sm); color: var(--muted); }
-.total-hours .value { font-size: var(--fs-xl); font-weight: 700; font-family: var(--font-mono); color: var(--ok-text); }
-
-.credits-top { display: flex; justify-content: space-between; align-items: center; }
-.credits-top .value { font-size: var(--fs-xl); font-weight: 700; font-family: var(--font-mono); color: var(--accent-text); }
-.credits-chips { display: flex; gap: var(--sp-1); flex-wrap: wrap; margin-top: var(--sp-2); }
+.credits-title {
+  font-size: var(--fs-2xs);
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: var(--sp-2);
+}
+.credits-chips { display: flex; gap: var(--sp-1); flex-wrap: wrap; }
 .credits-note { font-size: var(--fs-xs); color: var(--muted); margin-top: var(--sp-2); line-height: 1.4; }
 
 .req-details { margin-top: var(--sp-3); }
@@ -895,7 +1050,7 @@ h1, h2, h3, h4 { font-weight: 600; }
   pointer-events: none;
   min-width: 200px;
   max-width: 240px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.55);
+  box-shadow: var(--sh-3);
 }
 .tooltip[hidden] { display: none; }
 .tooltip-title { font-weight: 600; margin-bottom: var(--sp-1); }
@@ -918,7 +1073,7 @@ h1, h2, h3, h4 { font-weight: 600; }
   opacity: 0;
   transition: transform 0.28s var(--ease), opacity 0.28s var(--ease);
   max-width: 320px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--sh-3);
   line-height: 1.45;
 }
 .notification.show { transform: translateY(0); opacity: 1; }
@@ -953,7 +1108,7 @@ h1, h2, h3, h4 { font-weight: 600; }
   max-width: 100%;
   max-height: 88vh;
   overflow-y: auto;
-  box-shadow: 0 28px 70px rgba(0, 0, 0, 0.65);
+  box-shadow: var(--sh-4);
   transform: translateY(14px);
   transition: transform 0.22s var(--ease);
 }
@@ -1172,19 +1327,26 @@ h1, h2, h3, h4 { font-weight: 600; }
 
 /* Portatiles chicos: el resumen deja de competir por ancho. */
 @media (max-width: 1180px) {
-  .sidebar { width: 292px; min-width: 292px; }
-  .summary-panel { width: 240px; min-width: 240px; }
+  .sidebar { width: 296px; min-width: 296px; }
+  .summary-panel { width: 244px; min-width: 244px; }
   .app-header h1 .period { display: none; }
+  .metrics { gap: var(--sp-1); }
+  .metric-card { padding: var(--sp-2) 6px; }
 }
 
 /* Tablet y telefono: los paneles pasan a ser cajones sobre el horario. */
 @media (max-width: 900px) {
   .app-header { padding: var(--sp-2) var(--sp-3); gap: var(--sp-2); flex-wrap: wrap; }
-  .app-header h1 { font-size: var(--fs-lg); }
-  .header-stats { width: 100%; order: 3; }
+  .header-stats { order: 4; width: 100%; }
 
-  .app { height: auto; min-height: calc(100vh - var(--header-h)); }
+  .app {
+    height: auto;
+    min-height: calc(100vh - var(--header-h));
+    padding: var(--sp-2);
+    gap: 0;
+  }
 
+  /* Los cajones ocupan el alto completo: sin esquinas redondeadas ni margen. */
   .sidebar, .summary-panel {
     position: fixed;
     top: var(--header-h);
@@ -1192,10 +1354,12 @@ h1, h2, h3, h4 { font-weight: 600; }
     width: min(88vw, 340px);
     min-width: 0;
     z-index: 60;
-    box-shadow: 0 0 40px rgba(0, 0, 0, 0.6);
+    border-radius: 0;
+    border-width: 0;
+    box-shadow: var(--sh-4);
   }
-  .sidebar { left: 0; }
-  .summary-panel { right: 0; width: min(88vw, 300px); }
+  .sidebar { left: 0; border-right-width: 1px; }
+  .summary-panel { right: 0; width: min(88vw, 300px); border-left-width: 1px; }
 
   .toolbar { padding: var(--sp-2) var(--sp-3); gap: 6px; }
   .toolbar-title { display: none; }
@@ -1206,7 +1370,7 @@ h1, h2, h3, h4 { font-weight: 600; }
   .conflict-detail-bar { margin: var(--sp-2) var(--sp-3) 0; }
   .opt-score-bar { padding: var(--sp-2) var(--sp-3); }
 
-  .panel-reopen { top: auto; bottom: var(--sp-4); box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5); }
+  .panel-reopen { top: auto; bottom: var(--sp-4); box-shadow: var(--sh-3); }
 
   .notification { left: var(--sp-3); right: var(--sp-3); bottom: var(--sp-3); max-width: none; }
   .modal-footer { justify-content: stretch; }
