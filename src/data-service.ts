@@ -1,6 +1,7 @@
-﻿import { EXCEL_COURSES_FILE, EXCEL_TEACHERS_FILE } from "./constants";
-import { normalizeCourseName, normalizeDay, normalizeTeacherName, parseHour } from "./utils";
-import type { CoursesData, TeacherScores } from "./types";
+﻿import { EXCEL_COURSES_FILE, EXCEL_CURRICULUM_FILE, EXCEL_TEACHERS_FILE } from "./constants";
+import { buildCurriculum } from "./curriculum";
+import { normalizeCourseName, normalizeDay, normalizeTeacherName, normalizeText, parseHour } from "./utils";
+import type { CoursesData, Curriculum, TeacherScores } from "./types";
 
 interface CourseColumns {
   codigo: number;
@@ -35,8 +36,8 @@ export async function loadDefaultData(): Promise<{ courses: CoursesData; scores:
 }
 
 export async function loadCoursesFromExcel(): Promise<ExcelLoad<CoursesData>> {
-  return readExcel(EXCEL_COURSES_FILE, (rows) => {
-    const parsed = buildCoursesFromRows(rows);
+  return readExcel(EXCEL_COURSES_FILE, (wb) => {
+    const parsed = buildCoursesFromRows(wb.first);
     if (!Object.keys(parsed).length) {
       throw new ExcelError("no se reconocieron columnas de cursos (CODIGO / NOMBRE DEL CURSO / SECCION)");
     }
@@ -45,10 +46,10 @@ export async function loadCoursesFromExcel(): Promise<ExcelLoad<CoursesData>> {
 }
 
 export async function loadTeacherScoresFromExcel(): Promise<ExcelLoad<TeacherScores>> {
-  return readExcel(EXCEL_TEACHERS_FILE, (rows) => {
+  return readExcel(EXCEL_TEACHERS_FILE, (wb) => {
     const parsed: TeacherScores = {};
-    for (let i = 1; i < rows.length; i++) {
-      const row = rows[i] as unknown[];
+    for (let i = 1; i < wb.first.length; i++) {
+      const row = wb.first[i] as unknown[];
       const docente = normalizeTeacherName(String(row[0] ?? ""));
       const nota = Number(row[1]);
       if (!docente || !Number.isFinite(nota)) continue;
@@ -59,28 +60,52 @@ export async function loadTeacherScoresFromExcel(): Promise<ExcelLoad<TeacherSco
   });
 }
 
+export async function loadCurriculumFromExcel(): Promise<ExcelLoad<Curriculum>> {
+  return readExcel(EXCEL_CURRICULUM_FILE, (wb) => {
+    const cursos = wb.sheet("Cursos");
+    if (!cursos) throw new ExcelError("falta la hoja 'Cursos'");
+
+    const curriculum = buildCurriculum({
+      cursos,
+      prerequisitos: wb.sheet("Prerequisitos") ?? [],
+      requisitos: wb.sheet("RequisitosGrado") ?? [],
+    });
+
+    if (!Object.keys(curriculum.byCode).length) {
+      throw new ExcelError("la hoja 'Cursos' no tiene columnas CodigoCurso / NombreCurso");
+    }
+    return curriculum;
+  });
+}
+
+/** Hojas de un Excel ya convertidas a filas. */
+interface SheetSet {
+  /** Primera hoja del libro; es la unica que usan la carga horaria y las notas. */
+  first: unknown[][];
+  /** Busca una hoja por nombre, ignorando mayusculas y tildes. */
+  sheet(name: string): unknown[][] | null;
+}
+
 /** Lee un Excel opcional y traduce cualquier fallo real a un mensaje mostrable. */
-async function readExcel<T>(fileName: string, parse: (rows: unknown[][]) => T): Promise<ExcelLoad<T>> {
-  let rows: unknown[][];
+async function readExcel<T>(fileName: string, parse: (wb: SheetSet) => T): Promise<ExcelLoad<T>> {
+  let wb: SheetSet;
   try {
-    const found = await readFirstSheetRows(fileName);
+    const found = await readSheets(fileName);
     if (!found) return { data: null };
-    rows = found;
+    wb = found;
   } catch (err) {
-    const detail = err instanceof Error ? err.message : String(err);
-    return { data: null, error: `${baseName(fileName)}: ${detail}` };
+    return { data: null, error: `${baseName(fileName)}: ${describe(err)}` };
   }
 
   try {
-    return { data: parse(rows) };
+    return { data: parse(wb) };
   } catch (err) {
-    const detail = err instanceof Error ? err.message : String(err);
-    return { data: null, error: `${baseName(fileName)}: ${detail}` };
+    return { data: null, error: `${baseName(fileName)}: ${describe(err)}` };
   }
 }
 
 /** Devuelve null si el archivo no existe; lanza si existe pero no se puede leer. */
-async function readFirstSheetRows(fileName: string): Promise<unknown[][] | null> {
+async function readSheets(fileName: string): Promise<SheetSet | null> {
   const res = await fetch(encodeURI(fileName), { cache: "no-store" });
   if (res.status === 404) return null;
   if (!res.ok) throw new ExcelError(`respuesta ${res.status} del servidor`);
@@ -90,13 +115,28 @@ async function readFirstSheetRows(fileName: string): Promise<unknown[][] | null>
   if ((res.headers.get("content-type") ?? "").includes("text/html")) return null;
 
   const buffer = await res.arrayBuffer();
-  // xlsx pesa ~350 kB: se carga solo si de verdad hay un Excel que leer.
+  // xlsx pesa ~430 kB: se carga solo si de verdad hay un Excel que leer.
   const XLSX = await import("xlsx");
-  const wb = XLSX.read(buffer, { type: "array" });
-  if (!wb.SheetNames.length) throw new ExcelError("el archivo no tiene hojas");
+  const book = XLSX.read(buffer, { type: "array" });
+  if (!book.SheetNames.length) throw new ExcelError("el archivo no tiene hojas");
 
-  const ws = wb.Sheets[wb.SheetNames[0]];
-  return XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" }) as unknown[][];
+  const toRows = (name: string) =>
+    XLSX.utils.sheet_to_json(book.Sheets[name], { header: 1, defval: "" }) as unknown[][];
+
+  const byKey = new Map<string, string>();
+  for (const name of book.SheetNames) byKey.set(normalizeText(name), name);
+
+  return {
+    first: toRows(book.SheetNames[0]),
+    sheet: (name) => {
+      const real = byKey.get(normalizeText(name));
+      return real ? toRows(real) : null;
+    },
+  };
+}
+
+function describe(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
 }
 
 function baseName(path: string): string {

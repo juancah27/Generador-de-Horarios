@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>FIIS - Generador de Horarios 2026-1</title>
+  <title>FIIS - Generador de Horarios 2026-II</title>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/src/styles.css" />
 </head>
@@ -11,7 +11,7 @@
 
 <header>
   <div class="logo">FIIS</div>
-  <h1>Generador de Horarios <span>- 2026-1</span></h1>
+  <h1>Generador de Horarios <span>- 2026-II</span></h1>
   <div class="header-stats">
     <div class="stat-chip">
       <div class="dot" style="background:#3b82f6"></div>
@@ -49,6 +49,23 @@
       <button class="tab-btn active" data-filter="all">Todos</button>
       <button class="tab-btn" data-filter="recommended">&#9733; Recomendados</button>
       <button class="tab-btn" data-filter="selected">✓ Mis cursos</button>
+    </div>
+    <div class="malla-filters" id="malla-filters" hidden>
+      <label class="malla-filter">
+        <span>Ciclo</span>
+        <select id="filter-cycle">
+          <option value="">Todos</option>
+        </select>
+      </label>
+      <label class="malla-filter">
+        <span>Tipo</span>
+        <select id="filter-kind">
+          <option value="">Todos</option>
+          <option value="Obligatorio">Obligatorio</option>
+          <option value="Electivo">Electivo</option>
+          <option value="Complementario">Complementario</option>
+        </select>
+      </label>
     </div>
     <div class="courses-list" id="courses-list"></div>
   </div>
@@ -306,4 +323,5 @@
   <script type="module" src="/src/main.ts"></script>
 </body>
 </html>
+
 

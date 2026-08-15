@@ -54,6 +54,10 @@ export const DEFAULT_PARAMS: ScheduleParams = {
   allowPartial: true,
 };
 
-export const EXCEL_COURSES_FILE = "/data/CARGA HORARIA 2026-1 Oficial.xlsx";
+/** Periodo academico de los datos cargados. Se muestra en la UI y en el export. */
+export const PERIOD_LABEL = "2026-II";
+
+export const EXCEL_COURSES_FILE = "/data/CARGA HORARIA PRELIMINAR 2026 - II.xlsx";
 export const EXCEL_TEACHERS_FILE = "/data/Tabla de Encuesta Docente en Excel.xlsx";
+export const EXCEL_CURRICULUM_FILE = "/data/malla_curricular_uni.xlsx";
 

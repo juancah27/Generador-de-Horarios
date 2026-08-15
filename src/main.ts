@@ -5,15 +5,31 @@ import {
   DAYS,
   DEFAULT_PARAMS,
   DOT_COLORS,
+  PERIOD_LABEL,
   RECOMMENDED,
 } from "./constants";
 import { causesViolation, clashReport, getViolators, hardViolationsForSection } from "./conflicts";
+import { creditsByKind, kindLabel } from "./curriculum";
 import { layoutBlocks, visibleHours } from "./grid-layout";
-import { loadCoursesFromExcel, loadDefaultData, loadTeacherScoresFromExcel } from "./data-service";
+import {
+  loadCoursesFromExcel,
+  loadCurriculumFromExcel,
+  loadDefaultData,
+  loadTeacherScoresFromExcel,
+} from "./data-service";
 import { runOptimizer, lookupTeacherScore } from "./optimizer";
 import { fillModalFromParams, normalizeParams, readParamsFromModal } from "./params";
 import { escapeHtml, normalizeCourseName } from "./utils";
-import type { CoursesData, DayCode, OptimizerReport, ScheduleParams, SectionData, TeacherScores } from "./types";
+import type {
+  CoursesData,
+  Curriculum,
+  CurriculumCourse,
+  DayCode,
+  OptimizerReport,
+  ScheduleParams,
+  SectionData,
+  TeacherScores,
+} from "./types";
 
 type FilterMode = "all" | "recommended" | "selected";
 
@@ -33,6 +49,11 @@ declare global {
 
 let coursesData: CoursesData = {};
 let teacherScores: TeacherScores = {};
+/** Malla curricular. Null si el Excel no esta: la app funciona igual, sin ciclos ni creditos. */
+let curriculum: Curriculum | null = null;
+/** Filtros de la malla: "" = sin filtrar. */
+let cycleFilter = "";
+let kindFilter = "";
 let selected: Record<string, SectionData> = {};
 let colorMap: Record<string, string> = {};
 let colorIdx = 0;
@@ -130,6 +151,23 @@ function refreshCourseLookup(): void {
 
 function resolveCourseName(name: string): string {
   return courseNameLookup[normalizeCourseName(name)] ?? name;
+}
+
+/** Codigo del curso segun la carga horaria (todas sus secciones comparten codigo). */
+function courseCode(courseName: string): string {
+  const sections = coursesData[courseName];
+  if (!sections) return "";
+  return Object.values(sections)[0]?.codigo?.trim().toUpperCase() ?? "";
+}
+
+/**
+ * Datos de malla de un curso.
+ * Null cuando el curso no esta en la malla: la carga horaria cubre varias
+ * carreras y la malla es solo la de Ingenieria Industrial.
+ */
+function courseCurriculum(courseName: string): CurriculumCourse | null {
+  if (!curriculum) return null;
+  return curriculum.byCode[courseCode(courseName)] ?? null;
 }
 
 function updateTotalCoursesCount(): void {
@@ -355,6 +393,48 @@ function updateHeader(): void {
   if (selectedCount) selectedCount.textContent = `${Object.keys(selected).length} seleccionados`;
 }
 
+/**
+ * Creditos del horario armado, separados por tipo de curso, mas los requisitos
+ * de grado como referencia. El horario es de un ciclo: los minimos de egreso
+ * son de toda la carrera, por eso se muestran aparte y no como progreso.
+ */
+function creditsBlock(): string {
+  if (!curriculum) return "";
+
+  const codes = Object.keys(selected).map(courseCode);
+  const { total, byKind, sinMalla } = creditsByKind(curriculum, codes);
+
+  const chips = (["Obligatorio", "Electivo", "Complementario"] as const)
+    .filter((kind) => byKind[kind] > 0)
+    .map(
+      (kind) =>
+        `<span class="malla-tag kind-${kind.toLowerCase()}">${kindLabel(kind)} ${byKind[kind]} cr</span>`,
+    )
+    .join("");
+
+  const requisitos = curriculum.requirements
+    .map(
+      (r) =>
+        `<div class="req-row"><span>${escapeHtml(r.tipo)}</span><span>${r.creditosMinimos} cr</span></div>` +
+        (r.observacion ? `<div class="req-note">${escapeHtml(r.observacion)}</div>` : ""),
+    )
+    .join("");
+
+  return (
+    '<div class="credits-box">' +
+    '<div class="credits-top"><span class="label">Créditos del horario</span>' +
+    `<span class="value">${total}</span></div>` +
+    (chips ? `<div class="credits-chips">${chips}</div>` : "") +
+    (sinMalla
+      ? `<div class="credits-note">${sinMalla} curso${sinMalla > 1 ? "s" : ""} fuera de la malla (otra carrera)</div>`
+      : "") +
+    (requisitos
+      ? `<details class="req-details"><summary>Requisitos para egresar</summary>${requisitos}</details>`
+      : "") +
+    "</div>"
+  );
+}
+
 function updateSummary(): void {
   const container = document.getElementById("summary-content");
   if (!container) return;
@@ -374,7 +454,8 @@ function updateSummary(): void {
     '<div class="score-avg"><div class="label">Promedio docentes</div>' +
     `<div class="value" style="color:${avgColor}">${average !== null ? average.toFixed(2) : "—"}</div>` +
     '<div class="sub">sobre 20 puntos</div></div>' +
-    `<div class="total-hours"><span class="label">Total horas/semana</span><span class="value">${totalHours()}h</span></div>`;
+    `<div class="total-hours"><span class="label">Total horas/semana</span><span class="value">${totalHours()}h</span></div>` +
+    creditsBlock();
 
   for (const [course, sec] of selectedEntries) {
     const sc = getTeacherScore(sec.docente);
@@ -533,6 +614,13 @@ function renderCourseList(): void {
   if (filter === "selected") {
     courseList = courseList.filter((c) => Boolean(selected[c]));
   }
+  // Los filtros de malla excluyen los cursos que no estan en ella (otras carreras).
+  if (cycleFilter) {
+    courseList = courseList.filter((c) => String(courseCurriculum(c)?.ciclo ?? "") === cycleFilter);
+  }
+  if (kindFilter) {
+    courseList = courseList.filter((c) => courseCurriculum(c)?.tipo === kindFilter);
+  }
 
   if (!courseList.length) {
     container.innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted);font-size:13px">Sin resultados</div>';
@@ -585,14 +673,28 @@ function renderCourseList(): void {
         })
         .join("");
 
+      const malla = courseCurriculum(courseName);
+      const mallaTags = malla
+        ? `<span class="malla-tag kind-${malla.tipo.toLowerCase()}">${kindLabel(malla.tipo)}</span>` +
+          (malla.ciclo ? `<span class="malla-tag cycle">C${malla.ciclo}</span>` : "") +
+          `<span class="malla-tag credits">${malla.creditos} cr</span>`
+        : "";
+      const prereqs =
+        malla && malla.prereqs.length
+          ? `<div class="malla-prereqs">Requiere: ${escapeHtml(
+              malla.prereqs.map((p) => `${p.codigo} ${p.nombre}`).join(" · "),
+            )}</div>`
+          : "";
+
       return (
         `<div class="course-item ${isSelected ? "selected" : ""}${isBad ? " conflict-course" : ""} ${isOpen ? "open" : ""}" id="${cid}">` +
         `<div class="course-header" data-toggle="${encodeURIComponent(courseName)}">` +
         `<span class="course-code">${escapeHtml(code)}</span>` +
         `<span class="course-name">${escapeHtml(courseName)}${isRecommended ? '<span class="rec-tag">★ REC</span>' : ""}</span>` +
+        mallaTags +
         (isSelected ? '<span style="color:var(--accent3);font-size:12px">✓</span>' : "") +
         '<span class="course-toggle">▼</span></div>' +
-        `<div class="sections-panel">${sectionsHtml}</div>` +
+        `<div class="sections-panel">${prereqs}${sectionsHtml}</div>` +
         "</div>"
       );
     })
@@ -747,7 +849,7 @@ function exportSchedule(): void {
   }
 
   const m = calcMetrics();
-  let txt = `HORARIO FIIS 2026-1\n${"=".repeat(50)}\n\n`;
+  let txt = `HORARIO FIIS ${PERIOD_LABEL}\n${"=".repeat(50)}\n\n`;
   txt += `RESTRICCIONES:\n  T+T: máx ${params.ruleTT}h | T+P: máx ${params.ruleTP}h | P+P: PROHIBIDO\n`;
   txt += `  Clases: ${params.minHour}:00-${params.maxHour}:00 | Días libres: ${params.freeDays.map((d) => DAY_NAME[d]).join(", ") || "Ninguno"}\n\n`;
 
@@ -773,10 +875,38 @@ function exportSchedule(): void {
   const blob = new Blob([txt], { type: "text/plain;charset=utf-8" });
   const link = document.createElement("a");
   link.href = URL.createObjectURL(blob);
-  link.download = "horario_FIIS_2026-1.txt";
+  link.download = `horario_FIIS_${PERIOD_LABEL}.txt`;
   link.click();
   URL.revokeObjectURL(link.href);
   showNotif("📤 Exportado", "success");
+}
+
+/** Muestra y cablea los filtros de ciclo/tipo. Sin malla quedan ocultos. */
+function setupMallaFilters(): void {
+  const box = document.getElementById("malla-filters");
+  const cycleSel = document.getElementById("filter-cycle") as HTMLSelectElement | null;
+  const kindSel = document.getElementById("filter-kind") as HTMLSelectElement | null;
+  if (!box || !cycleSel || !kindSel) return;
+
+  if (!curriculum) {
+    box.toggleAttribute("hidden", true);
+    return;
+  }
+
+  cycleSel.innerHTML =
+    '<option value="">Todos</option>' +
+    curriculum.cycles.map((c) => `<option value="${c}">Ciclo ${c}</option>`).join("");
+
+  cycleSel.addEventListener("change", () => {
+    cycleFilter = cycleSel.value;
+    renderCourseList();
+  });
+  kindSel.addEventListener("change", () => {
+    kindFilter = kindSel.value;
+    renderCourseList();
+  });
+
+  box.toggleAttribute("hidden", false);
 }
 
 async function init(): Promise<void> {
@@ -817,12 +947,15 @@ async function init(): Promise<void> {
   coursesData = defaults.courses;
   teacherScores = defaults.scores;
 
-  const [excelCourses, excelScores] = await Promise.all([
+  const [excelCourses, excelScores, excelCurriculum] = await Promise.all([
     loadCoursesFromExcel(),
     loadTeacherScoresFromExcel(),
+    loadCurriculumFromExcel(),
   ]);
   if (excelCourses.data) coursesData = excelCourses.data;
   if (excelScores.data) teacherScores = excelScores.data;
+  curriculum = excelCurriculum.data;
+  setupMallaFilters();
 
   refreshCourseLookup();
   updateTotalCoursesCount();
@@ -832,7 +965,9 @@ async function init(): Promise<void> {
   renderGrid();
 
   // Un Excel ausente es normal (se usa el JSON base); uno ilegible hay que avisarlo.
-  const excelErrors = [excelCourses.error, excelScores.error].filter((e): e is string => Boolean(e));
+  const excelErrors = [excelCourses.error, excelScores.error, excelCurriculum.error].filter(
+    (e): e is string => Boolean(e),
+  );
   if (excelErrors.length) {
     console.warn("[horarios] Excel no utilizable:", excelErrors.join(" · "));
     showNotif(`⚠ ${excelErrors[0]} — se usan los datos por defecto`, "warning");

@@ -48,6 +48,30 @@ export interface OptimizerReport {
   colorIdx: number;
 }
 
+export type CourseKind = "Obligatorio" | "Electivo" | "Complementario";
+
+export interface CurriculumCourse {
+  codigo: string;
+  nombre: string;
+  creditos: number;
+  tipo: CourseKind;
+  /** Ciclo del plan (1-10). Null en electivos y complementarios, que son libres. */
+  ciclo: number | null;
+  prereqs: Array<{ codigo: string; nombre: string }>;
+}
+
+export interface GradeRequirement {
+  tipo: string;
+  creditosMinimos: number;
+  observacion: string;
+}
+
+export interface Curriculum {
+  byCode: Record<string, CurriculumCourse>;
+  requirements: GradeRequirement[];
+  cycles: number[];
+}
+
 export interface AppState {
   coursesData: CoursesData;
   teacherScores: TeacherScores;

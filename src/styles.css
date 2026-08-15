@@ -590,6 +590,92 @@
     margin-left: 4px;
   }
   
+  /* MALLA CURRICULAR */
+  .malla-filters {
+    display: flex;
+    gap: 8px;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .malla-filters[hidden] { display: none; }
+  .malla-filter { display: flex; flex-direction: column; gap: 3px; flex: 1; }
+  .malla-filter span {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--muted);
+  }
+  .malla-filter select {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 11px;
+    padding: 5px 6px;
+    cursor: pointer;
+  }
+
+  .malla-tag {
+    border-radius: 3px;
+    padding: 1px 5px;
+    font-size: 9px;
+    font-weight: 700;
+    white-space: nowrap;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .malla-tag.kind-obligatorio { background: rgba(59,130,246,0.18); color: #93c5fd; }
+  .malla-tag.kind-electivo { background: rgba(168,85,247,0.18); color: #d8b4fe; }
+  .malla-tag.kind-complementario { background: rgba(245,158,11,0.18); color: #fcd34d; }
+  .malla-tag.cycle { background: var(--surface2); color: var(--muted); }
+  .malla-tag.credits { background: rgba(16,185,129,0.15); color: #6ee7b7; }
+
+  .malla-prereqs {
+    font-size: 10px;
+    line-height: 1.5;
+    color: var(--muted);
+    padding: 6px 10px;
+    border-left: 2px solid var(--accent2);
+    background: rgba(99,102,241,0.06);
+    margin-bottom: 6px;
+  }
+
+  .credits-box {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin-bottom: 12px;
+  }
+  .credits-top { display: flex; justify-content: space-between; align-items: center; }
+  .credits-top .label { font-size: 12px; color: var(--muted); }
+  .credits-top .value {
+    font-size: 20px;
+    font-weight: 700;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--accent2);
+  }
+  .credits-chips { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 8px; }
+  .credits-note { font-size: 10px; color: var(--muted); margin-top: 6px; }
+
+  .req-details { margin-top: 10px; }
+  .req-details summary {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .req-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    padding: 3px 0;
+    border-bottom: 1px solid rgba(30,45,69,0.5);
+  }
+  .req-row span:last-child { font-family: 'JetBrains Mono', monospace; color: var(--text); }
+  .req-note { font-size: 9px; color: var(--muted); line-height: 1.4; padding: 2px 0 4px; }
+
   /* FILTER TABS */
   .filter-tabs {
     display: flex;
