@@ -153,6 +153,27 @@ describe("colores de curso de la grilla", () => {
   });
 
   /*
+   * El nombre del docente es texto secundario: hereda el color del bloque con
+   * transparencia, asi que su contraste efectivo mezcla el texto con el fondo.
+   * Se pide 3:1 (umbral de grafismo), menos que los 4.5:1 del curso, que es
+   * lo que debe destacar.
+   */
+  const infoOpacity = Number(css.match(/\.cb-info \{[^}]*opacity:\s*([\d.]+)/)?.[1] ?? 1);
+  it.each(courseCases)("[%s] color-%i el docente se lee sobre su fondo", (theme, _i, hex) => {
+    const c = toRgb(hex);
+    const bg = mix(c, readPercent(theme, "--c-bg"), toRgb(token(theme, "--surface")));
+    const fg = mix(c, readPercent(theme, "--c-text"), toRgb(token(theme, "--text")));
+    const eff = fg.map((v, i) => Math.round(v * infoOpacity + bg[i] * (1 - infoOpacity))) as Rgb;
+    expect(contrast(eff, bg)).toBeGreaterThanOrEqual(3);
+  });
+
+  it("el docente usa transparencia, no un color fijo", () => {
+    const info = css.match(/\.cb-info \{([^}]*)\}/)?.[1] ?? "";
+    expect(info).toMatch(/opacity:/);
+    expect(info).not.toMatch(/color:/);
+  });
+
+  /*
    * El bloque tiene que despegarse del panel. La razon de luminancia no sirve
    * para esto: un cian brillante sobre panel blanco tiene poca diferencia de
    * luminancia y aun asi se distingue perfecto, porque la diferencia es de

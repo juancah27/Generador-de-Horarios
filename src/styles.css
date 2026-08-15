@@ -845,7 +845,12 @@ h1, h2, h3, h4 { font-weight: 600; }
   font-size: var(--fs-2xs);
 }
 .cb-course { font-weight: 600; line-height: 1.3; }
-.cb-info { color: rgba(255, 255, 255, 0.74); line-height: 1.3; }
+/*
+ * El docente hereda el color del bloque (tinte del curso) pero con mas
+ * transparencia que el nombre del curso y que el tipo: se prioriza el curso.
+ * Jerarquia: curso (1.0) > tipo (0.92) > docente (0.75).
+ */
+.cb-info { opacity: 0.75; line-height: 1.3; }
 .cb-type { font-weight: 700; opacity: 0.92; font-family: var(--font-mono); }
 
 /*
