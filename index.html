@@ -51,22 +51,19 @@
       <button class="tab-btn" data-filter="selected">✓ Mis cursos</button>
     </div>
     <div class="malla-filters" id="malla-filters" hidden>
-      <label class="malla-filter">
-        <span>Ciclo</span>
-        <select id="filter-cycle">
-          <option value="">Todos</option>
+      <div class="malla-row">
+        <select id="filter-cycle" class="cycle-select" aria-label="Filtrar por ciclo">
+          <option value="">Todos los ciclos</option>
         </select>
-      </label>
-      <label class="malla-filter">
-        <span>Tipo</span>
-        <select id="filter-kind">
-          <option value="">Todos</option>
-          <option value="Obligatorio">Obligatorio</option>
-          <option value="Electivo">Electivo</option>
-          <option value="Complementario">Complementario</option>
-        </select>
-      </label>
+        <button type="button" class="kind-chip clear" id="filter-clear" hidden>Limpiar</button>
+      </div>
+      <div class="malla-row" id="kind-chips">
+        <button type="button" class="kind-chip kind-obligatorio" data-kind="Obligatorio">Obligatorios</button>
+        <button type="button" class="kind-chip kind-electivo" data-kind="Electivo">Electivos</button>
+        <button type="button" class="kind-chip kind-complementario" data-kind="Complementario">Complementarios</button>
+      </div>
     </div>
+    <div class="course-count" id="course-count" hidden></div>
     <div class="courses-list" id="courses-list"></div>
   </div>
 

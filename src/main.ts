@@ -9,6 +9,7 @@ import {
   RECOMMENDED,
 } from "./constants";
 import { causesViolation, clashReport, getViolators, hardViolationsForSection } from "./conflicts";
+import { filterCourses, type FilterMode } from "./course-filter";
 import { creditsByKind, kindLabel } from "./curriculum";
 import { layoutBlocks, visibleHours } from "./grid-layout";
 import {
@@ -31,7 +32,6 @@ import type {
   TeacherScores,
 } from "./types";
 
-type FilterMode = "all" | "recommended" | "selected";
 
 declare global {
   interface Window {
@@ -604,26 +604,28 @@ function renderCourseList(): void {
   const bad = getViolators(selected, params);
   const recommendedSet = new Set(RECOMMENDED.map(resolveCourseName));
 
-  let courseList = Object.keys(coursesData).sort();
-  if (normalizedQuery) {
-    courseList = courseList.filter((c) => c.toLowerCase().includes(normalizedQuery));
-  }
-  if (filter === "recommended") {
-    courseList = courseList.filter((c) => recommendedSet.has(c));
-  }
-  if (filter === "selected") {
-    courseList = courseList.filter((c) => Boolean(selected[c]));
-  }
-  // Los filtros de malla excluyen los cursos que no estan en ella (otras carreras).
-  if (cycleFilter) {
-    courseList = courseList.filter((c) => String(courseCurriculum(c)?.ciclo ?? "") === cycleFilter);
-  }
-  if (kindFilter) {
-    courseList = courseList.filter((c) => courseCurriculum(c)?.tipo === kindFilter);
-  }
+  const allCourses = Object.keys(coursesData).sort();
+  const courseList = filterCourses(
+    allCourses,
+    {
+      query: searchQ,
+      mode: filter,
+      cycle: cycleFilter,
+      kind: kindFilter,
+      recommended: recommendedSet,
+      selected: new Set(Object.keys(selected)),
+    },
+    { code: courseCode, malla: courseCurriculum },
+  );
+
+  syncFilterControls(courseList.length, allCourses.length);
 
   if (!courseList.length) {
-    container.innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted);font-size:13px">Sin resultados</div>';
+    const hint =
+      cycleFilter || kindFilter
+        ? '<div style="font-size:11px;margin-top:6px">Ningún curso ofertado coincide con los filtros de malla.</div>'
+        : "";
+    container.innerHTML = `<div style="text-align:center;padding:30px;color:var(--muted);font-size:13px">Sin resultados${hint}</div>`;
     return;
   }
 
@@ -885,8 +887,9 @@ function exportSchedule(): void {
 function setupMallaFilters(): void {
   const box = document.getElementById("malla-filters");
   const cycleSel = document.getElementById("filter-cycle") as HTMLSelectElement | null;
-  const kindSel = document.getElementById("filter-kind") as HTMLSelectElement | null;
-  if (!box || !cycleSel || !kindSel) return;
+  const chips = document.getElementById("kind-chips");
+  const clearBtn = document.getElementById("filter-clear");
+  if (!box || !cycleSel || !chips || !clearBtn) return;
 
   if (!curriculum) {
     box.toggleAttribute("hidden", true);
@@ -894,19 +897,49 @@ function setupMallaFilters(): void {
   }
 
   cycleSel.innerHTML =
-    '<option value="">Todos</option>' +
+    '<option value="">Todos los ciclos</option>' +
     curriculum.cycles.map((c) => `<option value="${c}">Ciclo ${c}</option>`).join("");
 
   cycleSel.addEventListener("change", () => {
     cycleFilter = cycleSel.value;
     renderCourseList();
   });
-  kindSel.addEventListener("change", () => {
-    kindFilter = kindSel.value;
+
+  // Los chips alternan: volver a pulsar el activo quita el filtro.
+  chips.addEventListener("click", (event) => {
+    const kind = (event.target as HTMLElement).dataset.kind;
+    if (!kind) return;
+    kindFilter = kindFilter === kind ? "" : kind;
+    renderCourseList();
+  });
+
+  clearBtn.addEventListener("click", () => {
+    cycleFilter = "";
+    kindFilter = "";
+    cycleSel.value = "";
     renderCourseList();
   });
 
   box.toggleAttribute("hidden", false);
+}
+
+/** Refleja en los controles que filtros estan activos. */
+function syncFilterControls(shown: number, total: number): void {
+  const cycleSel = document.getElementById("filter-cycle") as HTMLSelectElement | null;
+  const clearBtn = document.getElementById("filter-clear");
+  const count = document.getElementById("course-count");
+  const active = Boolean(cycleFilter || kindFilter);
+
+  cycleSel?.classList.toggle("active", Boolean(cycleFilter));
+  document.querySelectorAll<HTMLElement>(".kind-chip[data-kind]").forEach((chip) => {
+    chip.classList.toggle("active", chip.dataset.kind === kindFilter);
+  });
+  clearBtn?.toggleAttribute("hidden", !active);
+
+  if (!count) return;
+  const filtering = active || searchQ.trim().length > 0;
+  count.toggleAttribute("hidden", !filtering);
+  if (filtering) count.textContent = `${shown} de ${total} cursos`;
 }
 
 async function init(): Promise<void> {
