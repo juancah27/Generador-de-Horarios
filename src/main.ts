@@ -33,18 +33,9 @@ import type {
 } from "./types";
 
 
-declare global {
-  interface Window {
-    autoSelectBest: () => void;
-    openOptimizer: () => void;
-    closeOptimizer: () => void;
-    closeReport: () => void;
-    applyAndGenerate: () => void;
-    resetParams: () => void;
-    exportSchedule: () => void;
-    clearAll: () => void;
-    togglePanel: (which: "sidebar" | "summary") => void;
-  }
+/** Marca un icono del sprite de index.html. */
+function icon(name: string, extraClass = ""): string {
+  return `<svg class="ic ${extraClass}" aria-hidden="true"><use href="#i-${name}"/></svg>`;
 }
 
 let coursesData: CoursesData = {};
@@ -205,16 +196,32 @@ function applyPanelState(): void {
   const summaryBtn = document.getElementById("toggle-summary-btn");
   const reopenSidebarBtn = document.getElementById("reopen-sidebar-btn");
   const reopenSummaryBtn = document.getElementById("reopen-summary-btn");
-  if (sidebarBtn) sidebarBtn.setAttribute("aria-pressed", panelState.sidebar ? "true" : "false");
-  if (summaryBtn) summaryBtn.setAttribute("aria-pressed", panelState.summary ? "true" : "false");
-  if (reopenSidebarBtn) reopenSidebarBtn.toggleAttribute("hidden", panelState.sidebar);
-  if (reopenSummaryBtn) reopenSummaryBtn.toggleAttribute("hidden", panelState.summary);
+  sidebarBtn?.setAttribute("aria-expanded", String(panelState.sidebar));
+  summaryBtn?.setAttribute("aria-expanded", String(panelState.summary));
+  reopenSidebarBtn?.toggleAttribute("hidden", panelState.sidebar);
+  reopenSummaryBtn?.toggleAttribute("hidden", panelState.summary);
 }
 
 function togglePanel(which: "sidebar" | "summary"): void {
   panelState[which] = !panelState[which];
   applyPanelState();
   savePanelState();
+
+  // En pantallas angostas los paneles tapan el horario: al abrir uno, cierra el otro.
+  if (panelState[which] && window.matchMedia("(max-width: 900px)").matches) {
+    const other = which === "sidebar" ? "summary" : "sidebar";
+    if (panelState[other]) {
+      panelState[other] = false;
+      applyPanelState();
+      savePanelState();
+    }
+  }
+
+  // Devolver el foco al control que queda visible evita perderlo en el body.
+  const target = panelState[which]
+    ? document.getElementById(which === "sidebar" ? "toggle-sidebar-btn" : "toggle-summary-btn")
+    : document.getElementById(which === "sidebar" ? "reopen-sidebar-btn" : "reopen-summary-btn");
+  target?.focus();
 }
 
 function showNotif(message: string, type: "success" | "error" | "warning" = "success"): void {
@@ -235,6 +242,14 @@ function scoreClass(score: number | null): string {
   if (score >= 17) return "score-high";
   if (score >= 15) return "score-mid";
   return "score-low";
+}
+
+/** Color de un numero de nota, en clases con tokens en vez de hex sueltos. */
+function scoreValueClass(score: number | null): string {
+  if (score === null) return "";
+  if (score >= 17) return "val-ok";
+  if (score >= 15) return "val-warn";
+  return "val-danger";
 }
 
 function avgScore(): number | null {
@@ -306,12 +321,12 @@ function updateMetricsBar(): void {
 
   const metrics = calcMetrics();
   if (!metrics) {
-    scoreBar.style.display = "none";
-    detailBar.classList.remove("show");
+    scoreBar.toggleAttribute("hidden", true);
+    detailBar.toggleAttribute("hidden", true);
     return;
   }
 
-  scoreBar.style.display = "flex";
+  scoreBar.toggleAttribute("hidden", false);
   const mDays = document.getElementById("m-days");
   const mFree = document.getElementById("m-free");
   const mStart = document.getElementById("m-start");
@@ -322,13 +337,16 @@ function updateMetricsBar(): void {
   if (mFree) mFree.textContent = metrics.freeDays.length ? metrics.freeDays.map((d) => DAY_NAME[d].slice(0, 3)).join(", ") : "—";
   if (mStart) mStart.textContent = `${metrics.minH}:00`;
   if (mEnd) mEnd.textContent = `${metrics.maxH}:00`;
+  // El color sale de clases con tokens, no de hex sueltos en el JS.
+  const overlapClass = (ov: number, limit: number) =>
+    ov > limit ? "val val-danger" : ov > 0 ? "val val-warn" : "val val-ok";
   if (mTt) {
     mTt.textContent = `${metrics.ttOv}h`;
-    mTt.style.color = metrics.ttOv > params.ruleTT ? "#f87171" : metrics.ttOv > 0 ? "#fcd34d" : "#4ade80";
+    mTt.className = overlapClass(metrics.ttOv, params.ruleTT);
   }
   if (mTp) {
     mTp.textContent = `${metrics.tpOv}h`;
-    mTp.style.color = metrics.tpOv > params.ruleTP ? "#f87171" : metrics.tpOv > 0 ? "#fcd34d" : "#4ade80";
+    mTp.className = overlapClass(metrics.tpOv, params.ruleTP);
   }
 
   const msgs: string[] = [];
@@ -345,11 +363,9 @@ function updateMetricsBar(): void {
     }
   }
 
+  detailBar.toggleAttribute("hidden", msgs.length === 0);
   if (msgs.length) {
-    detailBar.innerHTML = `⚠ ${msgs.map(escapeHtml).join(" &nbsp;|&nbsp; ")}`;
-    detailBar.classList.add("show");
-  } else {
-    detailBar.classList.remove("show");
+    detailBar.innerHTML = icon("alert") + " " + msgs.map(escapeHtml).join(" &nbsp;·&nbsp; ");
   }
 }
 
@@ -361,14 +377,16 @@ function showTooltip(event: MouseEvent, block: { course: string; sec: SectionDat
   const issues = hardViolationsForSection(block.sec, params);
   tooltip.innerHTML =
     `<div class="tooltip-title">${escapeHtml(block.course)}</div>` +
-    `<div class="tooltip-row">Docente: <span>${escapeHtml(block.sec.docente)}</span></div>` +
-    (teacherScore !== null ? `<div class="tooltip-row">★ <span style="color:#4ade80">${teacherScore.toFixed(3)}</span></div>` : "") +
-    `<div class="tooltip-row">Sección: <span>${escapeHtml(block.sec.secId ?? "-")}</span></div>` +
-    `<div class="tooltip-row">${block.cls.inicio}:00-${block.cls.fin}:00 [${escapeHtml(block.cls.tipo)}]</div>` +
-    (issues.length ? `<div style="color:#fcd34d;font-size:10px;margin-top:4px">⚠ ${escapeHtml(issues.join(" · "))}</div>` : "") +
-    `<div style="color:var(--muted);font-size:10px;margin-top:6px">Click para eliminar</div>`;
+    `<div class="tooltip-row">Docente <span>${escapeHtml(block.sec.docente)}</span></div>` +
+    (teacherScore !== null
+      ? `<div class="tooltip-row">Nota <span class="val-ok">${teacherScore.toFixed(2)} / 20</span></div>`
+      : "") +
+    `<div class="tooltip-row">Sección <span>${escapeHtml(block.sec.secId ?? "-")}</span></div>` +
+    `<div class="tooltip-row">Horario <span>${block.cls.inicio}:00–${block.cls.fin}:00 · ${escapeHtml(block.cls.tipo)}</span></div>` +
+    (issues.length ? `<div class="tooltip-warn">${escapeHtml(issues.join(" · "))}</div>` : "") +
+    '<div class="tooltip-hint">Clic para quitarlo del horario</div>';
 
-  tooltip.style.display = "block";
+  tooltip.toggleAttribute("hidden", false);
   moveTooltip(event);
 }
 
@@ -384,8 +402,7 @@ function moveTooltip(event: MouseEvent): void {
 }
 
 function hideTooltip(): void {
-  const tooltip = document.getElementById("tooltip");
-  if (tooltip) tooltip.style.display = "none";
+  document.getElementById("tooltip")?.toggleAttribute("hidden", true);
 }
 
 function updateHeader(): void {
@@ -444,17 +461,20 @@ function updateSummary(): void {
 
   if (!selectedEntries.length) {
     container.innerHTML =
-      '<div class="empty-state"><div class="icon">📌</div><p>Selecciona cursos o usa el generador automático</p></div>';
+      '<div class="empty-state">' +
+      icon("pin", "empty-icon") +
+      "<p>Todavía no elegiste cursos.</p>" +
+      '<p class="hint">Buscalos en el catálogo o pulsá <strong>Mejor horario automático</strong>.</p>' +
+      "</div>";
     return;
   }
 
   const average = avgScore();
-  const avgColor = (average ?? 0) >= 17 ? "#4ade80" : (average ?? 0) >= 15 ? "#fcd34d" : "#f87171";
   let html =
     '<div class="score-avg"><div class="label">Promedio docentes</div>' +
-    `<div class="value" style="color:${avgColor}">${average !== null ? average.toFixed(2) : "—"}</div>` +
+    `<div class="value ${scoreValueClass(average)}">${average !== null ? average.toFixed(2) : "—"}</div>` +
     '<div class="sub">sobre 20 puntos</div></div>' +
-    `<div class="total-hours"><span class="label">Total horas/semana</span><span class="value">${totalHours()}h</span></div>` +
+    `<div class="total-hours"><span class="label">Horas por semana</span><span class="value">${totalHours()}h</span></div>` +
     creditsBlock();
 
   for (const [course, sec] of selectedEntries) {
@@ -474,18 +494,22 @@ function updateSummary(): void {
     }
 
     html +=
-      `<div class="selected-course-item" style="${isBad ? "border-color:var(--danger)" : ""}">` +
-      `<button class="sci-remove" data-course="${encodeURIComponent(course)}">×</button>` +
+      `<div class="selected-course-item${isBad ? " is-bad" : ""}">` +
+      `<button type="button" class="sci-remove" data-course="${encodeURIComponent(course)}">` +
+      icon("x") +
+      `<span class="sr-only">Quitar ${escapeHtml(course)} del horario</span></button>` +
       `<div class="sci-name"><span class="sci-color-dot" style="background:${dot}"></span>${escapeHtml(course)}</div>` +
       `<div class="sci-detail">Sec. ${escapeHtml(sec.secId ?? "-")} · ${escapeHtml(sec.docente.split(",")[0])}</div>` +
       `<div class="sci-detail">${escapeHtml(
         sec.clases
-          .map((c) => `${DAY_NAME[String(c.dia).trim() as DayCode] ?? c.dia} ${c.inicio}-${c.fin} [${c.tipo}]`)
-          .join(" | "),
+          .map((c) => `${DAY_NAME[String(c.dia).trim() as DayCode] ?? c.dia} ${c.inicio}–${c.fin} ${c.tipo}`)
+          .join(" · "),
       )}</div>` +
-      (sc !== null ? `<div class="sci-score" style="color:${sc >= 17 ? "#4ade80" : sc >= 15 ? "#fcd34d" : "#f87171"}">★ ${sc.toFixed(3)} / 20</div>` : "") +
-      clashes.map((m) => `<div style="color:var(--danger);font-size:10px;margin-top:2px">⛔ ${escapeHtml(m)}</div>`).join("") +
-      issues.map((m) => `<div style="color:#fcd34d;font-size:10px;margin-top:1px">⚠ ${escapeHtml(m)}</div>`).join("") +
+      (sc !== null ? `<div class="sci-score ${scoreValueClass(sc)}">${sc.toFixed(2)} / 20</div>` : "") +
+      clashes
+        .map((m) => `<p class="sci-issue clash">${icon("ban")}${escapeHtml(m)}</p>`)
+        .join("") +
+      issues.map((m) => `<p class="sci-issue warn">${icon("alert")}${escapeHtml(m)}</p>`).join("") +
       "</div>";
   }
 
@@ -511,19 +535,19 @@ function renderGrid(): void {
 
   for (const hour of visibleHours(params, selected)) {
     const label = document.createElement("div");
-    label.className = "time-label";
+    label.className = `time-label${hour === params.minHour ? " hour-start" : ""}`;
     label.textContent = `${hour}:00`;
-    if (hour === params.minHour) label.style.borderTop = "2px solid rgba(99,102,241,.5)";
     body.appendChild(label);
 
     for (const day of DAYS) {
       const cell = document.createElement("div");
-      cell.className = "grid-cell";
-      if (params.freeDays.includes(day)) cell.style.background = "rgba(16,185,129,.025)";
+      cell.className = `grid-cell${params.freeDays.includes(day) ? " free-day" : ""}`;
 
       for (const block of blocks[`${day}-${hour}`] ?? []) {
         const duration = block.cls.fin - block.cls.inicio;
-        const el = document.createElement("div");
+        // Boton real: navegable con Tab y activable con Enter o Espacio.
+        const el = document.createElement("button");
+        el.type = "button";
         el.className = `class-block ${block.color}${block.isBad ? " conflict-block" : ""}`;
         el.style.top = `${(block.cls.inicio - hour) * rowH + 2}px`;
         el.style.height = `${duration * rowH - 4}px`;
@@ -536,13 +560,21 @@ function renderGrid(): void {
 
         const shortName = block.course.length > 25 ? `${block.course.slice(0, 23)}…` : block.course;
         const score = getTeacherScore(block.sec.docente);
+        const dayName = DAY_NAME[day] ?? day;
+        el.setAttribute(
+          "aria-label",
+          `${block.course}, sección ${block.sec.secId ?? "-"}, ${block.cls.tipo}, ` +
+            `${dayName} de ${block.cls.inicio} a ${block.cls.fin} horas` +
+            `${block.isBad ? ", con cruce inválido" : ""}. Activar para quitarlo del horario.`,
+        );
         el.innerHTML =
-          `<div class="cb-course">${escapeHtml(shortName)}</div>` +
-          `<div class="cb-info">${escapeHtml(block.sec.docente.split(",")[0])}</div>` +
-          `<div class="cb-type">${escapeHtml(block.cls.tipo)} · ${escapeHtml(block.sec.secId ?? "-")}${score !== null ? ` · ★${score.toFixed(1)}` : ""}</div>`;
+          `<span class="cb-course">${escapeHtml(shortName)}</span>` +
+          `<span class="cb-info">${escapeHtml(block.sec.docente.split(",")[0])}</span>` +
+          `<span class="cb-type">${escapeHtml(block.cls.tipo)} · ${escapeHtml(block.sec.secId ?? "-")}${score !== null ? ` · ${score.toFixed(1)}` : ""}</span>`;
         el.addEventListener("mouseenter", (event) => showTooltip(event as MouseEvent, block));
         el.addEventListener("mousemove", (event) => moveTooltip(event as MouseEvent));
         el.addEventListener("mouseleave", hideTooltip);
+        el.addEventListener("blur", hideTooltip);
         el.addEventListener("click", () => removeCourse(block.course));
         cell.appendChild(el);
       }
@@ -551,7 +583,7 @@ function renderGrid(): void {
     }
   }
 
-  badge.style.display = bad.size ? "block" : "none";
+  badge.toggleAttribute("hidden", bad.size === 0);
   saveSelectedState();
   updateMetricsBar();
   updateSummary();
@@ -623,9 +655,10 @@ function renderCourseList(): void {
   if (!courseList.length) {
     const hint =
       cycleFilter || kindFilter
-        ? '<div style="font-size:11px;margin-top:6px">Ningún curso ofertado coincide con los filtros de malla.</div>'
-        : "";
-    container.innerHTML = `<div style="text-align:center;padding:30px;color:var(--muted);font-size:13px">Sin resultados${hint}</div>`;
+        ? '<p class="hint">Ningún curso ofertado este ciclo coincide con los filtros de malla.</p>'
+        : '<p class="hint">Probá con otro nombre o con el código del curso.</p>';
+    container.innerHTML =
+      `<div class="empty-state">${icon("search", "empty-icon")}<p>Sin resultados</p>${hint}</div>`;
     return;
   }
 
@@ -651,26 +684,32 @@ function renderCourseList(): void {
             .map((c) => {
               const d = String(c.dia).trim() as DayCode;
               const issue = c.inicio < params.minHour || c.fin > params.maxHour || params.freeDays.includes(d);
-              return `<span class="schedule-chip day-${escapeHtml(d)}">${escapeHtml(d)} ${c.inicio}-${c.fin}·${escapeHtml(c.tipo)}${issue ? " ⚠" : ""}</span>`;
+              return (
+                `<span class="schedule-chip day-${escapeHtml(d)}">${escapeHtml(d)} ${c.inicio}–${c.fin} ${escapeHtml(c.tipo)}` +
+                `${issue ? icon("alert") : ""}</span>`
+              );
             })
             .join("");
 
-          const warns: string[] = [];
-          if (wouldViolate) warns.push('<span style="color:var(--danger);font-size:10px">⛔ Viola regla de cruce</span>');
-          else if (issues.length) warns.push(`<span style="color:#fcd34d;font-size:10px">⚠ ${escapeHtml(issues[0])}</span>`);
+          let warn = "";
+          if (wouldViolate) {
+            warn = `<span class="warn-danger">${icon("ban")}Cruza con lo que ya elegiste</span>`;
+          } else if (issues.length) {
+            warn = `<span class="warn-soft">${icon("alert")}${escapeHtml(issues[0])}</span>`;
+          }
 
           return (
-            `<div class="section-card ${isActive ? "active" : ""}${wouldViolate && !isActive ? " conflict" : ""}" ` +
+            `<button type="button" class="section-card${isActive ? " active" : ""}${wouldViolate && !isActive ? " conflict" : ""}" ` +
             `data-course="${encodeURIComponent(courseName)}" data-sec="${escapeHtml(sid)}" ` +
-            `title="${wouldViolate && !isActive ? "Viola reglas de cruce" : "Seleccionar"}">` +
-            '<div class="sec-top">' +
+            `aria-pressed="${isActive}">` +
+            '<span class="sec-top">' +
             `<span class="sec-label">Sec. ${escapeHtml(sid)}</span>` +
             `<span class="teacher-name">${escapeHtml(sec.docente.includes("NN") ? "Por asignar" : sec.docente.split(",")[0])}</span>` +
-            (sc !== null ? `<span class="teacher-score ${scoreClass(sc)}">★${sc.toFixed(1)}</span>` : "") +
-            "</div>" +
-            `<div class="sec-schedule">${chips}</div>` +
-            (warns.length ? `<div style="display:flex;gap:6px;margin-top:3px;flex-wrap:wrap">${warns.join("")}</div>` : "") +
-            "</div>"
+            (sc !== null ? `<span class="teacher-score ${scoreClass(sc)}">${sc.toFixed(1)}</span>` : "") +
+            "</span>" +
+            `<span class="sec-schedule">${chips}</span>` +
+            (warn ? `<span class="sec-warn">${warn}</span>` : "") +
+            "</button>"
           );
         })
         .join("");
@@ -683,20 +722,22 @@ function renderCourseList(): void {
         : "";
       const prereqs =
         malla && malla.prereqs.length
-          ? `<div class="malla-prereqs">Requiere: ${escapeHtml(
+          ? `<p class="malla-prereqs"><strong>Requiere:</strong> ${escapeHtml(
               malla.prereqs.map((p) => `${p.codigo} ${p.nombre}`).join(" · "),
-            )}</div>`
+            )}</p>`
           : "";
 
+      const panelId = `${cid}-secs`;
       return (
-        `<div class="course-item ${isSelected ? "selected" : ""}${isBad ? " conflict-course" : ""} ${isOpen ? "open" : ""}" id="${cid}">` +
-        `<div class="course-header" data-toggle="${encodeURIComponent(courseName)}">` +
+        `<div class="course-item${isSelected ? " selected" : ""}${isBad ? " conflict-course" : ""}${isOpen ? " open" : ""}" id="${cid}">` +
+        `<button type="button" class="course-header" data-toggle="${encodeURIComponent(courseName)}" ` +
+        `aria-expanded="${Boolean(isOpen)}" aria-controls="${panelId}">` +
         `<span class="course-code">${escapeHtml(code)}</span>` +
-        `<span class="course-name">${escapeHtml(courseName)}${isRecommended ? '<span class="rec-tag">★ REC</span>' : ""}</span>` +
+        `<span class="course-name">${escapeHtml(courseName)}${isRecommended ? `<span class="rec-tag">${icon("star")}REC</span>` : ""}</span>` +
         mallaTags +
-        (isSelected ? '<span style="color:var(--accent3);font-size:12px">✓</span>' : "") +
-        '<span class="course-toggle">▼</span></div>' +
-        `<div class="sections-panel">${prereqs}${sectionsHtml}</div>` +
+        (isSelected ? `<span class="course-selected-mark">${icon("check")}<span class="sr-only">En tu horario</span></span>` : "") +
+        `<span class="course-toggle">${icon("chevron")}</span></button>` +
+        `<div class="sections-panel" id="${panelId}">${prereqs}${sectionsHtml}</div>` +
         "</div>"
       );
     })
@@ -707,9 +748,9 @@ function renderCourseList(): void {
       const encoded = el.dataset.toggle;
       if (!encoded) return;
       const courseName = decodeURIComponent(encoded);
-      const id = `ci-${courseName.replace(/\W/g, "_")}`;
-      const item = document.getElementById(id);
-      item?.classList.toggle("open");
+      const item = document.getElementById(`ci-${courseName.replace(/\W/g, "_")}`);
+      const open = item?.classList.toggle("open") ?? false;
+      el.setAttribute("aria-expanded", String(open));
     });
   });
 
@@ -733,17 +774,17 @@ function showOptimizerReport(report: OptimizerReport): void {
   const hardCount = report.hardMisses.length;
 
   if (!droppedCount && !hardCount) {
-    showNotif(`✅ ${placedCount} cursos colocados · todas las restricciones cumplidas`, "success");
+    showNotif(`${placedCount} cursos colocados, sin cruces ni restricciones rotas`, "success");
     return;
   }
 
   const droppedHtml = report.dropped
     .map(
       (d) =>
-        '<div style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);border-radius:8px;padding:10px 12px;margin-bottom:8px">' +
-        `<div style="font-weight:600;font-size:12px;color:#fca5a5">🚫 ${escapeHtml(d.course)}</div>` +
-        `<div style="font-size:11px;color:var(--muted);margin-top:3px;line-height:1.5">${escapeHtml(d.reason)}</div>` +
-        `<div style="font-size:10px;color:var(--muted);margin-top:2px">${d.checked} secciones evaluadas</div>` +
+        '<div class="report-item bad">' +
+        `<h4>${icon("ban")}${escapeHtml(d.course)}</h4>` +
+        `<p>${escapeHtml(d.reason)}</p>` +
+        `<p>${d.checked} secciones evaluadas</p>` +
         "</div>",
     )
     .join("");
@@ -751,32 +792,28 @@ function showOptimizerReport(report: OptimizerReport): void {
   const hardHtml = report.hardMisses
     .map(
       (m) =>
-        '<div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.2);border-radius:8px;padding:10px 12px;margin-bottom:8px">' +
-        `<div style="font-weight:600;font-size:12px;color:#fcd34d">⚠ ${escapeHtml(m.course)}</div>` +
-        `<div style="font-size:11px;color:var(--muted);margin-top:3px">${escapeHtml(m.issues.join(" · "))}</div>` +
+        '<div class="report-item warn">' +
+        `<h4>${icon("alert")}${escapeHtml(m.course)}</h4>` +
+        `<p>${escapeHtml(m.issues.join(" · "))}</p>` +
         "</div>",
     )
     .join("");
 
   body.innerHTML =
-    '<div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">' +
-    '<div style="background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.25);border-radius:8px;padding:8px 14px;text-align:center">' +
-    `<div style="font-size:22px;font-weight:700;color:#4ade80">${placedCount}</div><div style="font-size:11px;color:var(--muted)">Colocados</div></div>` +
-    '<div style="background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.25);border-radius:8px;padding:8px 14px;text-align:center">' +
-    `<div style="font-size:22px;font-weight:700;color:#f87171">${droppedCount}</div><div style="font-size:11px;color:var(--muted)">Descartados</div></div>` +
-    '<div style="background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.2);border-radius:8px;padding:8px 14px;text-align:center">' +
-    `<div style="font-size:22px;font-weight:700;color:#fcd34d">${hardCount}</div><div style="font-size:11px;color:var(--muted)">Restricciones</div></div></div>` +
-    (droppedCount ? `<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--danger);margin-bottom:8px">Cursos descartados</div>${droppedHtml}` : "") +
-    (hardCount ? `<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--warn);margin:12px 0 8px">Restricciones no cumplidas</div>${hardHtml}` : "") +
-    '<div style="font-size:11px;color:var(--muted);margin-top:12px;padding:10px;background:var(--surface2);border-radius:6px">' +
-    "💡 Ajusta los parámetros en <strong>⚙ Parámetros</strong> para intentar incluir los cursos descartados.</div>";
+    '<div class="report-stats">' +
+    `<div class="report-stat ok"><div class="n">${placedCount}</div><div class="t">Colocados</div></div>` +
+    `<div class="report-stat bad"><div class="n">${droppedCount}</div><div class="t">Descartados</div></div>` +
+    `<div class="report-stat warn"><div class="n">${hardCount}</div><div class="t">Restricciones</div></div>` +
+    "</div>" +
+    (droppedCount ? `<h3 class="report-group-title bad">Cursos descartados</h3>${droppedHtml}` : "") +
+    (hardCount ? `<h3 class="report-group-title warn">Restricciones no cumplidas</h3>${hardHtml}` : "") +
+    `<p class="report-tip">${icon("bulb")}<span>Aflojá los límites en <strong>Parámetros</strong> para intentar incluir los cursos descartados.</span></p>`;
 
-  modal.classList.add("open");
+  openModal("modal-report");
 }
 
 function closeReport(): void {
-  const modal = document.getElementById("modal-report");
-  if (modal) modal.classList.remove("open");
+  closeModal("modal-report");
 }
 
 /**
@@ -820,21 +857,63 @@ function autoSelectBest(): void {
   showOptimizerReport(report);
 }
 
+/** Control que tenia el foco antes de abrir el modal, para devolverselo al cerrar. */
+let modalOpener: HTMLElement | null = null;
+
+function openModal(id: string): void {
+  const modal = document.getElementById(id);
+  if (!modal) return;
+  modalOpener = document.activeElement as HTMLElement | null;
+  modal.toggleAttribute("hidden", false);
+  // Un frame de espera: el elemento debe estar visible para que la transicion corra.
+  requestAnimationFrame(() => modal.classList.add("open"));
+  modal.querySelector<HTMLElement>("button, [href], input, select")?.focus();
+}
+
+function closeModal(id: string): void {
+  const modal = document.getElementById(id);
+  if (!modal) return;
+  modal.classList.remove("open");
+  modal.toggleAttribute("hidden", true);
+  modalOpener?.focus();
+  modalOpener = null;
+}
+
 function openOptimizer(): void {
   fillModalFromParams(params);
-  const modal = document.getElementById("modal-overlay");
-  if (modal) modal.classList.add("open");
+  openModal("modal-overlay");
 }
 
 function closeOptimizer(): void {
-  const modal = document.getElementById("modal-overlay");
-  if (modal) modal.classList.remove("open");
+  closeModal("modal-overlay");
+}
+
+/** Mantiene el foco dentro del modal abierto mientras se navega con Tab. */
+function trapFocus(event: KeyboardEvent): void {
+  const modal = document.querySelector<HTMLElement>(".modal-overlay.open .modal");
+  if (!modal) return;
+
+  const focusables = [...modal.querySelectorAll<HTMLElement>("button, input, select, textarea, [href]")].filter(
+    (el) => !el.hasAttribute("disabled"),
+  );
+  if (!focusables.length) return;
+
+  const first = focusables[0];
+  const last = focusables[focusables.length - 1];
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
 }
 
 function resetParams(): void {
   params = normalizeParams(DEFAULT_PARAMS);
   fillModalFromParams(params);
   saveParamsState();
+  showNotif("Parámetros restablecidos", "warning");
 }
 
 function applyAndGenerate(): void {
@@ -880,7 +959,7 @@ function exportSchedule(): void {
   link.download = `horario_FIIS_${PERIOD_LABEL}.txt`;
   link.click();
   URL.revokeObjectURL(link.href);
-  showNotif("📤 Exportado", "success");
+  showNotif(`Horario exportado como horario_FIIS_${PERIOD_LABEL}.txt`, "success");
 }
 
 /** Muestra y cablea los filtros de ciclo/tipo. Sin malla quedan ocultos. */
@@ -907,9 +986,9 @@ function setupMallaFilters(): void {
 
   // Los chips alternan: volver a pulsar el activo quita el filtro.
   chips.addEventListener("click", (event) => {
-    const kind = (event.target as HTMLElement).dataset.kind;
-    if (!kind) return;
-    kindFilter = kindFilter === kind ? "" : kind;
+    const chip = (event.target as HTMLElement).closest<HTMLElement>("[data-kind]");
+    if (!chip?.dataset.kind) return;
+    kindFilter = kindFilter === chip.dataset.kind ? "" : chip.dataset.kind;
     renderCourseList();
   });
 
@@ -932,7 +1011,9 @@ function syncFilterControls(shown: number, total: number): void {
 
   cycleSel?.classList.toggle("active", Boolean(cycleFilter));
   document.querySelectorAll<HTMLElement>(".kind-chip[data-kind]").forEach((chip) => {
-    chip.classList.toggle("active", chip.dataset.kind === kindFilter);
+    const on = chip.dataset.kind === kindFilter;
+    chip.classList.toggle("active", on);
+    chip.setAttribute("aria-pressed", String(on));
   });
   clearBtn?.toggleAttribute("hidden", !active);
 
@@ -942,10 +1023,57 @@ function syncFilterControls(shown: number, total: number): void {
   if (filtering) count.textContent = `${shown} de ${total} cursos`;
 }
 
+/** Conecta los controles fijos del HTML. Antes vivian en atributos onclick. */
+function wireControls(): void {
+  const on = (id: string, fn: () => void) => document.getElementById(id)?.addEventListener("click", fn);
+
+  on("btn-auto", autoSelectBest);
+  on("btn-params", openOptimizer);
+  on("btn-clear", clearAll);
+  on("btn-export", exportSchedule);
+  on("btn-reset-params", resetParams);
+  on("btn-apply", applyAndGenerate);
+  on("btn-report-params", () => {
+    closeReport();
+    openOptimizer();
+  });
+  on("toggle-sidebar-btn", () => togglePanel("sidebar"));
+  on("reopen-sidebar-btn", () => togglePanel("sidebar"));
+  on("toggle-summary-btn", () => togglePanel("summary"));
+  on("reopen-summary-btn", () => togglePanel("summary"));
+
+  document.querySelectorAll<HTMLElement>("[data-close]").forEach((btn) => {
+    btn.addEventListener("click", () => closeModal(btn.dataset.close as string));
+  });
+
+  // Clic fuera del cuadro cierra el modal.
+  document.querySelectorAll<HTMLElement>(".modal-overlay").forEach((overlay) => {
+    overlay.addEventListener("click", (event) => {
+      if (event.target === overlay) closeModal(overlay.id);
+    });
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      const open = document.querySelector<HTMLElement>(".modal-overlay.open");
+      if (open) closeModal(open.id);
+    } else if (event.key === "Tab") {
+      trapFocus(event);
+    }
+  });
+}
+
 async function init(): Promise<void> {
   loadPanelState();
+  // En pantallas angostas los paneles son cajones que tapan el horario:
+  // arrancan cerrados para que se vea la grilla primero.
+  if (window.matchMedia("(max-width: 900px)").matches) {
+    panelState.sidebar = false;
+    panelState.summary = false;
+  }
   applyPanelState();
   fillModalFromParams(params);
+  wireControls();
 
   document.querySelectorAll<HTMLElement>(".day-check").forEach((label) => {
     const cb = label.querySelector<HTMLInputElement>("input");
@@ -966,12 +1094,15 @@ async function init(): Promise<void> {
   const tabs = document.getElementById("filter-tabs");
   if (tabs) {
     tabs.addEventListener("click", (event) => {
-      const target = event.target as HTMLElement;
-      const next = target.dataset.filter as FilterMode | undefined;
-      if (!next) return;
+      const target = (event.target as HTMLElement).closest<HTMLElement>("[data-filter]");
+      const next = target?.dataset.filter as FilterMode | undefined;
+      if (!next || !target) return;
       filter = next;
-      document.querySelectorAll(".tab-btn").forEach((b) => b.classList.remove("active"));
-      target.classList.add("active");
+      document.querySelectorAll<HTMLElement>(".tab-btn").forEach((b) => {
+        const on = b === target;
+        b.classList.toggle("active", on);
+        b.setAttribute("aria-pressed", String(on));
+      });
       renderCourseList();
     });
   }
@@ -1003,7 +1134,7 @@ async function init(): Promise<void> {
   );
   if (excelErrors.length) {
     console.warn("[horarios] Excel no utilizable:", excelErrors.join(" · "));
-    showNotif(`⚠ ${excelErrors[0]} — se usan los datos por defecto`, "warning");
+    showNotif(`${excelErrors[0]}. Se usan los datos por defecto.`, "warning");
   } else if (excelCourses.data && excelScores.data) {
     showNotif("Cursos y notas cargados desde Excel", "success");
   } else if (excelCourses.data) {
@@ -1015,17 +1146,7 @@ async function init(): Promise<void> {
   // Solo genera automatico en el primer arranque; si habia horario guardado, se respeta.
   const restoredCount = Object.keys(selected).length;
   if (!restored) window.setTimeout(autoSelectBest, 150);
-  else if (restoredCount) showNotif(`Horario restaurado · ${restoredCount} cursos`, "success");
+  else if (restoredCount) showNotif(`Horario restaurado con ${restoredCount} cursos`, "success");
 }
-
-window.autoSelectBest = autoSelectBest;
-window.openOptimizer = openOptimizer;
-window.closeOptimizer = closeOptimizer;
-window.closeReport = closeReport;
-window.applyAndGenerate = applyAndGenerate;
-window.resetParams = resetParams;
-window.exportSchedule = exportSchedule;
-window.clearAll = clearAll;
-window.togglePanel = togglePanel;
 
 void init();

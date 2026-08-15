@@ -1,223 +1,290 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>FIIS - Generador de Horarios 2026-II</title>
+  <meta name="color-scheme" content="dark" />
+  <meta name="description" content="Arma tu horario FIIS 2026-II: reglas de cruce, optimizador automático y malla curricular." />
+  <title>FIIS · Generador de Horarios 2026-II</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/src/styles.css" />
 </head>
 <body>
 
-<header>
-  <div class="logo">FIIS</div>
-  <h1>Generador de Horarios <span>- 2026-II</span></h1>
+<!--
+  Set de iconos propio: 24x24, trazo 1.5, currentColor, extremos redondeados.
+  Se usa con <svg class="ic"><use href="#i-nombre"/></svg>.
+-->
+<svg class="icon-sprite" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <g id="s-cal"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/></g>
+  </defs>
+  <symbol id="i-cal" viewBox="0 0 24 24"><use href="#s-cal"/></symbol>
+  <symbol id="i-cal-check" viewBox="0 0 24 24"><use href="#s-cal"/><path d="m9 15 2 2 4-4"/></symbol>
+  <symbol id="i-sparkle" viewBox="0 0 24 24"><path d="M12 3.5 13.7 9l5.5 1.7-5.5 1.8L12 18l-1.7-5.5L4.8 10.7 10.3 9z"/><path d="M18.5 3.5v3M20 5h-3"/></symbol>
+  <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h10M18 18h2"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="16" cy="18" r="2"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/><path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12"/><path d="M10 11v6M14 11v6"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v11M8 11l4 4 4-4"/><path d="M4 17v2a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-2"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="m20 20-4.5-4.5"/></symbol>
+  <symbol id="i-star" viewBox="0 0 24 24"><path d="m12 4 2.5 5.2 5.5.8-4 3.9 1 5.6-5-2.7-5 2.7 1-5.6-4-3.9 5.5-.8z"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 4.5 21 20H3z"/><path d="M12 10v4M12 17h.01"/></symbol>
+  <symbol id="i-ban" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="m6.5 6.5 11 11"/></symbol>
+  <symbol id="i-book" viewBox="0 0 24 24"><path d="M5 4h11a2 2 0 0 1 2 2v14H7a2 2 0 0 1-2-2z"/><path d="M5 17h13"/></symbol>
+  <symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 20h16"/><path d="M7 20v-6M12 20V6M17 20v-9"/></symbol>
+  <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="m7 7 10 10M17 7 7 17"/></symbol>
+  <symbol id="i-bulb" viewBox="0 0 24 24"><path d="M9.5 17.5h5M10 20.5h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.3.3.5.7.5 1.1v.5h6v-.5c0-.4.2-.8.5-1.1A6 6 0 0 0 12 3"/></symbol>
+  <symbol id="i-sunrise" viewBox="0 0 24 24"><path d="M4 18h16M8.5 18a3.5 3.5 0 0 1 7 0"/><path d="M12 4v4M6.5 7l1.5 2M17.5 7 16 9"/></symbol>
+  <symbol id="i-sunset" viewBox="0 0 24 24"><path d="M4 18h16M8.5 18a3.5 3.5 0 0 1 7 0"/><path d="M12 9V5M9.5 7 12 4.5 14.5 7"/></symbol>
+  <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.5"/></symbol>
+  <symbol id="i-hash" viewBox="0 0 24 24"><path d="M10 4 8 20M16 4l-2 16M4.5 9h15M4 15h15"/></symbol>
+  <symbol id="i-rotate" viewBox="0 0 24 24"><path d="M4 10a8 8 0 1 1 1.5 6"/><path d="M4 5v5h5"/></symbol>
+  <symbol id="i-toggle" viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="10" rx="5"/><circle cx="16" cy="12" r="2.5"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21v-6"/><path d="M8.5 4h7l-1 6 2.5 2v3H7v-3l2.5-2z"/></symbol>
+</svg>
+
+<a class="skip-link" href="#horario">Saltar al horario</a>
+
+<header class="app-header">
+  <span class="logo">FIIS</span>
+  <h1>Generador de Horarios <span class="period">2026-II</span></h1>
   <div class="header-stats">
-    <div class="stat-chip">
-      <div class="dot" style="background:#3b82f6"></div>
-      <span id="total-courses-count">136 cursos</span>
-    </div>
-    <div class="stat-chip">
-      <div class="dot" style="background:#10b981"></div>
-      <span id="selected-count">0 seleccionados</span>
-    </div>
+    <span class="stat-chip"><span class="dot dot-total" aria-hidden="true"></span><span id="total-courses-count">136 cursos</span></span>
+    <span class="stat-chip"><span class="dot dot-sel" aria-hidden="true"></span><span id="selected-count">0 seleccionados</span></span>
   </div>
 </header>
 
 <div class="app">
-  <!-- SIDEBAR: Course List -->
-  <div class="sidebar">
+  <!-- CATÁLOGO -->
+  <aside class="sidebar" aria-labelledby="catalogo-title">
     <div class="sidebar-header">
       <div class="panel-header-row">
-        <h2>Catálogo de Cursos</h2>
+        <h2 id="catalogo-title">Catálogo de cursos</h2>
         <button
+          type="button"
           class="panel-head-action"
           id="toggle-sidebar-btn"
-          onclick="togglePanel('sidebar')"
-          title="Ocultar panel de cursos"
-          aria-label="Ocultar panel de cursos"
+          aria-controls="courses-list"
+          aria-expanded="true"
         >
-          ×
+          <svg class="ic" aria-hidden="true"><use href="#i-x"/></svg>
+          <span class="sr-only">Ocultar el catálogo de cursos</span>
         </button>
       </div>
       <div class="search-box">
-        <span class="search-icon">&#128269;</span>
-        <input type="text" id="search-input" placeholder="Buscar curso..." autocomplete="off">
+        <svg class="ic search-icon" aria-hidden="true"><use href="#i-search"/></svg>
+        <label class="sr-only" for="search-input">Buscar curso por nombre o código</label>
+        <input type="search" id="search-input" placeholder="Buscar curso o código…" autocomplete="off">
       </div>
     </div>
-    <div class="filter-tabs" id="filter-tabs">
-      <button class="tab-btn active" data-filter="all">Todos</button>
-      <button class="tab-btn" data-filter="recommended">&#9733; Recomendados</button>
-      <button class="tab-btn" data-filter="selected">✓ Mis cursos</button>
+
+    <div class="filter-tabs" id="filter-tabs" role="group" aria-label="Vista del catálogo">
+      <button type="button" class="tab-btn active" data-filter="all" aria-pressed="true">Todos</button>
+      <button type="button" class="tab-btn" data-filter="recommended" aria-pressed="false">
+        <svg class="ic" aria-hidden="true"><use href="#i-star"/></svg>Recomendados
+      </button>
+      <button type="button" class="tab-btn" data-filter="selected" aria-pressed="false">
+        <svg class="ic" aria-hidden="true"><use href="#i-check"/></svg>Mis cursos
+      </button>
     </div>
+
     <div class="malla-filters" id="malla-filters" hidden>
       <div class="malla-row">
-        <select id="filter-cycle" class="cycle-select" aria-label="Filtrar por ciclo">
+        <label class="sr-only" for="filter-cycle">Filtrar por ciclo del plan</label>
+        <select id="filter-cycle" class="cycle-select">
           <option value="">Todos los ciclos</option>
         </select>
-        <button type="button" class="kind-chip clear" id="filter-clear" hidden>Limpiar</button>
+        <button type="button" class="kind-chip clear" id="filter-clear" hidden>
+          <svg class="ic" aria-hidden="true"><use href="#i-x"/></svg>Limpiar
+        </button>
       </div>
-      <div class="malla-row" id="kind-chips">
-        <button type="button" class="kind-chip kind-obligatorio" data-kind="Obligatorio">Obligatorios</button>
-        <button type="button" class="kind-chip kind-electivo" data-kind="Electivo">Electivos</button>
-        <button type="button" class="kind-chip kind-complementario" data-kind="Complementario">Complementarios</button>
+      <div class="malla-row" id="kind-chips" role="group" aria-label="Filtrar por tipo de curso">
+        <button type="button" class="kind-chip kind-obligatorio" data-kind="Obligatorio" aria-pressed="false">Obligatorios</button>
+        <button type="button" class="kind-chip kind-electivo" data-kind="Electivo" aria-pressed="false">Electivos</button>
+        <button type="button" class="kind-chip kind-complementario" data-kind="Complementario" aria-pressed="false">Complementarios</button>
       </div>
     </div>
-    <div class="course-count" id="course-count" hidden></div>
-    <div class="courses-list" id="courses-list"></div>
-  </div>
 
-  <!-- MAIN: Schedule Grid -->
-  <div class="main">
+    <p class="course-count" id="course-count" hidden></p>
+    <div class="courses-list" id="courses-list"></div>
+  </aside>
+
+  <!-- HORARIO -->
+  <main class="main" id="horario">
     <div class="toolbar">
-      <span class="toolbar-title">🗓 Vista Semanal</span>
-      <button class="auto-btn" onclick="autoSelectBest()">✨ Mejor horario automático</button>
-      <button class="btn btn-ghost" onclick="openOptimizer()" style="border-color:rgba(99,102,241,0.4);color:#a5b4fc">⚙ Parámetros</button>
-      <div id="conflict-badge" class="conflict-badge">⚠ Cruces detectados</div>
-      <div class="spacer"></div>
-      <button class="btn btn-ghost" onclick="clearAll()">🗑 Limpiar</button>
-      <button class="btn btn-success" onclick="exportSchedule()">📤 Exportar</button>
+      <h2 class="toolbar-title">
+        <svg class="ic" aria-hidden="true"><use href="#i-cal"/></svg>Vista semanal
+      </h2>
+      <button type="button" class="btn btn-accent" id="btn-auto">
+        <svg class="ic" aria-hidden="true"><use href="#i-sparkle"/></svg>Mejor horario automático
+      </button>
+      <button type="button" class="btn btn-ghost" id="btn-params">
+        <svg class="ic" aria-hidden="true"><use href="#i-sliders"/></svg>Parámetros
+      </button>
+      <p id="conflict-badge" class="conflict-badge" hidden>
+        <svg class="ic" aria-hidden="true"><use href="#i-alert"/></svg>Cruces detectados
+      </p>
+      <span class="spacer"></span>
+      <button type="button" class="btn btn-ghost" id="btn-clear">
+        <svg class="ic" aria-hidden="true"><use href="#i-trash"/></svg>Limpiar
+      </button>
+      <button type="button" class="btn btn-success" id="btn-export">
+        <svg class="ic" aria-hidden="true"><use href="#i-download"/></svg>Exportar
+      </button>
     </div>
-    <div class="opt-score-bar" id="opt-score-bar" style="display:none">
-      <span style="font-size:11px;color:var(--muted);font-weight:600">MÉTRICAS:</span>
-      <div class="opt-metric"><span class="label">Días usados&nbsp;</span><span class="val" id="m-days">–</span></div>
-      <div class="opt-metric"><span class="label">Días libres&nbsp;</span><span class="val" id="m-free" style="color:#4ade80">–</span></div>
-      <div class="opt-metric"><span class="label">Hora inicio&nbsp;</span><span class="val" id="m-start">–</span></div>
-      <div class="opt-metric"><span class="label">Hora fin&nbsp;</span><span class="val" id="m-end">–</span></div>
-      <div class="opt-metric"><span class="label">Cruces T/T&nbsp;</span><span class="val" id="m-tt">–</span></div>
-      <div class="opt-metric"><span class="label">Cruces T/P&nbsp;</span><span class="val" id="m-tp">–</span></div>
+
+    <div class="opt-score-bar" id="opt-score-bar" hidden>
+      <h3 class="opt-score-title">Métricas</h3>
+      <p class="opt-metric"><span class="label">Días usados</span><span class="val" id="m-days">–</span></p>
+      <p class="opt-metric"><span class="label">Días libres</span><span class="val val-ok" id="m-free">–</span></p>
+      <p class="opt-metric"><span class="label">Hora inicio</span><span class="val" id="m-start">–</span></p>
+      <p class="opt-metric"><span class="label">Hora fin</span><span class="val" id="m-end">–</span></p>
+      <p class="opt-metric"><span class="label">Cruces T/T</span><span class="val" id="m-tt">–</span></p>
+      <p class="opt-metric"><span class="label">Cruces T/P</span><span class="val" id="m-tp">–</span></p>
     </div>
-    <div class="conflict-detail-bar" id="conflict-detail-bar"></div>
+
+    <p class="conflict-detail-bar" id="conflict-detail-bar" hidden></p>
+
     <div class="grid-container">
-      <div class="schedule-grid" id="schedule-grid">
+      <div class="schedule-grid" id="schedule-grid" role="group" aria-label="Horario semanal">
         <div class="grid-header">
-          <div class="day-col-header" style="border-right:1px solid var(--border)"></div>
-          <div class="day-col-header lunes">LUN</div>
-          <div class="day-col-header martes">MAR</div>
-          <div class="day-col-header miercoles">MIÉ</div>
-          <div class="day-col-header jueves">JUE</div>
-          <div class="day-col-header viernes">VIE</div>
-          <div class="day-col-header sabado">SAB</div>
+          <span class="day-col-header time-col-header"><span class="sr-only">Hora</span></span>
+          <span class="day-col-header lunes"><abbr title="Lunes">LUN</abbr></span>
+          <span class="day-col-header martes"><abbr title="Martes">MAR</abbr></span>
+          <span class="day-col-header miercoles"><abbr title="Miércoles">MIÉ</abbr></span>
+          <span class="day-col-header jueves"><abbr title="Jueves">JUE</abbr></span>
+          <span class="day-col-header viernes"><abbr title="Viernes">VIE</abbr></span>
+          <span class="day-col-header sabado"><abbr title="Sábado">SÁB</abbr></span>
         </div>
         <div class="grid-body" id="grid-body"></div>
       </div>
     </div>
-  </div>
+  </main>
 
-  <!-- SUMMARY PANEL -->
-  <div class="summary-panel">
+  <!-- RESUMEN -->
+  <aside class="summary-panel" aria-labelledby="resumen-title">
     <div class="summary-header">
-      <span>Mi Horario</span>
+      <h2 id="resumen-title">Mi horario</h2>
       <button
+        type="button"
         class="panel-head-action"
         id="toggle-summary-btn"
-        onclick="togglePanel('summary')"
-        title="Ocultar panel de horario"
-        aria-label="Ocultar panel de horario"
+        aria-controls="summary-content"
+        aria-expanded="true"
       >
-        ×
+        <svg class="ic" aria-hidden="true"><use href="#i-x"/></svg>
+        <span class="sr-only">Ocultar el resumen del horario</span>
       </button>
     </div>
     <div class="summary-content" id="summary-content">
       <div class="empty-state">
-        <div class="icon">📅</div>
-        <p>Selecciona cursos del panel izquierdo para armar tu horario</p>
+        <svg class="ic empty-icon" aria-hidden="true"><use href="#i-cal"/></svg>
+        <p>Elegí cursos en el catálogo para armar tu horario.</p>
       </div>
     </div>
-  </div>
-  <button
-    class="panel-reopen panel-reopen-left"
-    id="reopen-sidebar-btn"
-    onclick="togglePanel('sidebar')"
-    title="Mostrar panel de cursos"
-    aria-label="Mostrar panel de cursos"
-  >
-    Cursos
+  </aside>
+
+  <button type="button" class="panel-reopen panel-reopen-left" id="reopen-sidebar-btn" hidden>
+    <svg class="ic" aria-hidden="true"><use href="#i-book"/></svg>Cursos
   </button>
-  <button
-    class="panel-reopen panel-reopen-right"
-    id="reopen-summary-btn"
-    onclick="togglePanel('summary')"
-    title="Mostrar panel de horario"
-    aria-label="Mostrar panel de horario"
-  >
-    Horario
+  <button type="button" class="panel-reopen panel-reopen-right" id="reopen-summary-btn" hidden>
+    <svg class="ic" aria-hidden="true"><use href="#i-cal-check"/></svg>Horario
   </button>
 </div>
 
-<!-- OPTIMIZER REPORT MODAL -->
-<div class="modal-overlay" id="modal-report" onclick="if(event.target===this)closeReport()">
-  <div class="modal" style="max-width:520px">
+<!-- RESULTADO DEL OPTIMIZADOR -->
+<div class="modal-overlay" id="modal-report" role="dialog" aria-modal="true" aria-labelledby="report-title" hidden>
+  <div class="modal modal-narrow">
     <div class="modal-header">
       <div>
-        <h2>📊 Resultado del Optimizador</h2>
-        <p>Detalle de qué se pudo colocar y por qué se descartó algo</p>
+        <h2 id="report-title">
+          <svg class="ic" aria-hidden="true"><use href="#i-chart"/></svg>Resultado del optimizador
+        </h2>
+        <p>Qué se pudo colocar y por qué se descartó lo demás</p>
       </div>
-      <button class="modal-close" onclick="closeReport()">×</button>
+      <button type="button" class="modal-close" data-close="modal-report">
+        <svg class="ic" aria-hidden="true"><use href="#i-x"/></svg>
+        <span class="sr-only">Cerrar</span>
+      </button>
     </div>
-    <div class="modal-body" id="opt-report-body" style="padding:16px 20px"></div>
+    <div class="modal-body" id="opt-report-body"></div>
     <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="openOptimizer();closeReport()">⚙ Ajustar parámetros</button>
-      <button class="auto-btn" onclick="closeReport()">✓ Entendido</button>
+      <button type="button" class="btn btn-ghost" id="btn-report-params">
+        <svg class="ic" aria-hidden="true"><use href="#i-sliders"/></svg>Ajustar parámetros
+      </button>
+      <button type="button" class="btn btn-accent" data-close="modal-report">Entendido</button>
     </div>
   </div>
 </div>
 
-<!-- OPTIMIZER MODAL -->
-<div class="modal-overlay" id="modal-overlay" onclick="if(event.target===this)closeOptimizer()">
+<!-- PARÁMETROS -->
+<div class="modal-overlay" id="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="params-title" hidden>
   <div class="modal">
     <div class="modal-header">
       <div>
-        <h2>⚙ Parámetros del Generador</h2>
-        <p>Configura las reglas de cruce y la optimización de horario</p>
+        <h2 id="params-title">
+          <svg class="ic" aria-hidden="true"><use href="#i-sliders"/></svg>Parámetros del generador
+        </h2>
+        <p>Reglas de cruce y prioridades del horario automático</p>
       </div>
-      <button class="modal-close" onclick="closeOptimizer()">×</button>
+      <button type="button" class="modal-close" data-close="modal-overlay">
+        <svg class="ic" aria-hidden="true"><use href="#i-x"/></svg>
+        <span class="sr-only">Cerrar</span>
+      </button>
     </div>
-    <div class="modal-body">
 
-      <div class="modal-section">
-        <div class="modal-section-title">📋 Reglas de Cruce (Normas FIIS)</div>
+    <div class="modal-body">
+      <section class="modal-section">
+        <h3 class="modal-section-title">Reglas de cruce (normas FIIS)</h3>
+
         <div class="rule-card">
-          <div class="rule-icon">📖</div>
+          <svg class="ic rule-icon" aria-hidden="true"><use href="#i-book"/></svg>
           <div class="rule-info">
-            <div class="rule-title">Teoría + Teoría</div>
-            <div class="rule-desc">Máximo de horas permitidas de solapamiento entre dos clases de Teoría (T)</div>
-            <div style="margin-top:8px;display:flex;align-items:center;gap:10px">
-              <label style="font-size:12px;color:var(--muted)">Máx. horas cruce:</label>
+            <h4 class="rule-title">Teoría + Teoría</h4>
+            <p class="rule-desc">Máximo de horas de solapamiento entre dos clases de Teoría (T).</p>
+            <div class="rule-control">
+              <label for="rule-tt">Máx. horas de cruce</label>
               <input type="number" class="num-input" id="rule-tt" value="4" min="0" max="8">
-              <span style="font-size:11px;color:var(--muted)">hrs (0 = no permitido)</span>
+              <span class="rule-hint">0 = no permitido</span>
             </div>
           </div>
         </div>
+
         <div class="rule-card">
-          <div class="rule-icon">P</div>
+          <svg class="ic rule-icon" aria-hidden="true"><use href="#i-toggle"/></svg>
           <div class="rule-info">
-            <div class="rule-title">Teoría + Práctica</div>
-            <div class="rule-desc">Máximo de horas permitidas de solapamiento entre Teoría (T) y Práctica (P/PRA/PC/LAB)</div>
-            <div style="margin-top:8px;display:flex;align-items:center;gap:10px">
-              <label style="font-size:12px;color:var(--muted)">Máx. horas cruce:</label>
+            <h4 class="rule-title">Teoría + Práctica</h4>
+            <p class="rule-desc">Máximo de horas de solapamiento entre Teoría (T) y Práctica (P/PRA/PC/LAB).</p>
+            <div class="rule-control">
+              <label for="rule-tp">Máx. horas de cruce</label>
               <input type="number" class="num-input" id="rule-tp" value="2" min="0" max="4">
-              <span style="font-size:11px;color:var(--muted)">hrs (0 = no permitido)</span>
+              <span class="rule-hint">0 = no permitido</span>
             </div>
           </div>
         </div>
-        <div class="rule-card" style="border-color:rgba(239,68,68,0.3)">
-          <div class="rule-icon">🚫</div>
+
+        <div class="rule-card rule-card-blocked">
+          <svg class="ic rule-icon" aria-hidden="true"><use href="#i-ban"/></svg>
           <div class="rule-info">
-            <div class="rule-title">Práctica + Práctica</div>
-            <div class="rule-desc">Cruce entre dos clases de Práctica/Lab <strong style="color:var(--danger)">SIEMPRE PROHIBIDO</strong> — no configurable por reglamento FIIS</div>
+            <h4 class="rule-title">Práctica + Práctica</h4>
+            <p class="rule-desc">Cruzar dos clases de Práctica o Laboratorio está <strong>siempre prohibido</strong> por reglamento FIIS. No es configurable.</p>
           </div>
           <span class="rule-status rule-inactive">Bloqueado</span>
         </div>
-      </div>
+      </section>
 
-      <div class="modal-section">
-        <div class="modal-section-title">⚡ Optimización de Horario</div>
+      <section class="modal-section">
+        <h3 class="modal-section-title">Optimización del horario</h3>
 
         <div class="param-row">
-          <div>
-            <div class="param-label">🌙 Clases desde las...</div>
-            <div class="param-desc">Hora mínima de inicio para cualquier clase</div>
+          <div class="param-text">
+            <label class="param-label" for="opt-min-hour">
+              <svg class="ic" aria-hidden="true"><use href="#i-sunrise"/></svg>Clases desde las
+            </label>
+            <p class="param-desc">Hora mínima de inicio para cualquier clase</p>
           </div>
           <div class="param-control">
             <select class="hour-select" id="opt-min-hour">
@@ -235,9 +302,11 @@
         </div>
 
         <div class="param-row">
-          <div>
-            <div class="param-label">🌅 Clases hasta las...</div>
-            <div class="param-desc">Hora máxima de fin para cualquier clase</div>
+          <div class="param-text">
+            <label class="param-label" for="opt-max-hour">
+              <svg class="ic" aria-hidden="true"><use href="#i-sunset"/></svg>Clases hasta las
+            </label>
+            <p class="param-desc">Hora máxima de fin para cualquier clase</p>
           </div>
           <div class="param-control">
             <select class="hour-select" id="opt-max-hour">
@@ -249,25 +318,28 @@
             </select>
           </div>
         </div>
-        <div class="param-row">
-          <div>
-            <div class="param-label">📅 Días a librar</div>
-            <div class="param-desc">El optimizador intentará dejarte libres estos días</div>
-          </div>
-        </div>
-        <div class="day-checkboxes" id="free-days-checks">
-          <label class="day-check" data-day="LU"><input type="checkbox" value="LU">Lun</label>
-          <label class="day-check" data-day="MA"><input type="checkbox" value="MA">Mar</label>
-          <label class="day-check" data-day="MI"><input type="checkbox" value="MI">Mié</label>
-          <label class="day-check" data-day="JU"><input type="checkbox" value="JU">Jue</label>
-          <label class="day-check" data-day="VI"><input type="checkbox" value="VI">Vie</label>
-          <label class="day-check" data-day="SA" checked><input type="checkbox" value="SA" checked>Sáb</label>
-        </div>
 
-        <div class="param-row" style="margin-top:12px">
-          <div>
-            <div class="param-label">🎯 Prioridad de optimización</div>
-            <div class="param-desc">¿Qué importa más al generar el horario automático?</div>
+        <fieldset class="param-fieldset">
+          <legend class="param-label">
+            <svg class="ic" aria-hidden="true"><use href="#i-cal"/></svg>Días a librar
+          </legend>
+          <p class="param-desc">El optimizador va a intentar dejarte libres estos días.</p>
+          <div class="day-checkboxes" id="free-days-checks">
+            <label class="day-check" data-day="LU"><input type="checkbox" value="LU">Lun</label>
+            <label class="day-check" data-day="MA"><input type="checkbox" value="MA">Mar</label>
+            <label class="day-check" data-day="MI"><input type="checkbox" value="MI">Mié</label>
+            <label class="day-check" data-day="JU"><input type="checkbox" value="JU">Jue</label>
+            <label class="day-check" data-day="VI"><input type="checkbox" value="VI">Vie</label>
+            <label class="day-check checked" data-day="SA"><input type="checkbox" value="SA" checked>Sáb</label>
+          </div>
+        </fieldset>
+
+        <div class="param-row">
+          <div class="param-text">
+            <label class="param-label" for="opt-priority">
+              <svg class="ic" aria-hidden="true"><use href="#i-target"/></svg>Prioridad
+            </label>
+            <p class="param-desc">Qué importa más al generar el horario automático</p>
           </div>
           <div class="param-control">
             <select class="hour-select" id="opt-priority">
@@ -281,44 +353,48 @@
         </div>
 
         <div class="param-row">
-          <div>
-            <div class="param-label">✅ Permitir selección con cruces tolerados</div>
-            <div class="param-desc">Avisar pero no bloquear si el cruce está dentro del límite</div>
+          <div class="param-text">
+            <label class="param-label" for="allow-partial-conflict">
+              <svg class="ic" aria-hidden="true"><use href="#i-check"/></svg>Permitir cruces tolerados
+            </label>
+            <p class="param-desc">Avisa pero no bloquea si el cruce está dentro del límite</p>
           </div>
           <label class="toggle-switch">
             <input type="checkbox" id="allow-partial-conflict" checked>
-            <div class="toggle-track"></div>
-            <div class="toggle-thumb"></div>
+            <span class="toggle-track"></span>
+            <span class="toggle-thumb"></span>
           </label>
         </div>
 
         <div class="param-row">
-          <div>
-            <div class="param-label">🔢 Máx. cursos a generar</div>
-            <div class="param-desc">Límite de cursos en el horario automático</div>
+          <div class="param-text">
+            <label class="param-label" for="opt-max-courses">
+              <svg class="ic" aria-hidden="true"><use href="#i-hash"/></svg>Máx. cursos a generar
+            </label>
+            <p class="param-desc">Límite de cursos en el horario automático</p>
           </div>
           <div class="param-control">
             <input type="number" class="num-input" id="opt-max-courses" value="7" min="1" max="12">
           </div>
         </div>
-
-      </div><!-- end modal-section -->
-    </div><!-- end modal-body -->
-    <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="resetParams()">↺ Restablecer</button>
-      <button class="btn btn-ghost" onclick="closeOptimizer()">Cancelar</button>
-      <button class="auto-btn" onclick="applyAndGenerate()">✨ Aplicar y generar</button>
+      </section>
     </div>
-  </div><!-- end modal -->
-</div><!-- end modal-overlay -->
 
-<!-- TOOLTIP -->
-<div id="tooltip" class="tooltip" style="display:none;position:fixed;z-index:500;pointer-events:none;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px;min-width:200px;font-size:12px;box-shadow:0 8px 24px rgba(0,0,0,.5)"></div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-ghost" id="btn-reset-params">
+        <svg class="ic" aria-hidden="true"><use href="#i-rotate"/></svg>Restablecer
+      </button>
+      <button type="button" class="btn btn-ghost" data-close="modal-overlay">Cancelar</button>
+      <button type="button" class="btn btn-accent" id="btn-apply">
+        <svg class="ic" aria-hidden="true"><use href="#i-sparkle"/></svg>Aplicar y generar
+      </button>
+    </div>
+  </div>
+</div>
 
-<!-- NOTIFICATION -->
-<div id="notification" class="notification"></div>
-  <script type="module" src="/src/main.ts"></script>
+<div id="tooltip" class="tooltip" role="tooltip" hidden></div>
+<p id="notification" class="notification" role="status" aria-live="polite"></p>
+
+<script type="module" src="/src/main.ts"></script>
 </body>
 </html>
-
-

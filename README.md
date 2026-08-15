@@ -24,6 +24,7 @@ Aplicacion web para organizar horarios de cursos FIIS con:
 - `index.html`: shell de la interfaz.
 - `src/main.ts`: orquestacion UI + estado de aplicacion.
 - `src/data-service.ts`: carga de JSON base y Excel.
+- `src/styles.css`: tokens y estilos. Los colores son tokens, no hex sueltos.
 - `src/conflicts.ts`: motor de cruces y violaciones.
 - `src/optimizer.ts`: busqueda con backtracking y ranking de secciones.
 - `src/curriculum.ts`: malla curricular (ciclos, tipos, creditos, prerequisitos).
@@ -32,11 +33,36 @@ Aplicacion web para organizar horarios de cursos FIIS con:
 - `scripts/build-defaults.ts`: regenera los JSON de respaldo desde los Excel.
 - `public/data/`: datasets JSON y archivos Excel usados por la app.
 
+## Interfaz
+
+Los colores viven en `:root` de `src/styles.css`. Dos reglas que conviene no
+romper:
+
+- Los tokens `--accent`, `--danger` y `--accent3` son para bordes y fondos
+  translucidos. Para un relleno solido con texto blanco encima van
+  `--accent-fill`, `--accent2-fill` y `--danger-fill`: los de marca se quedan
+  en 3.7:1 y no llegan al minimo AA de 4.5:1.
+- El texto secundario usa `--muted`; los estados usan `--ok-text`,
+  `--warn-text` y `--danger-text`, que son las variantes que pasan AA sobre las
+  tres superficies.
+
+`src/tokens.test.ts` calcula los ratios leyendo el CSS, asi que bajar el brillo
+de un token rompe el test antes que la legibilidad.
+
+Los tamaños de fuente son siete tokens (`--fs-2xs` a `--fs-2xl`). El test
+tambien falla si aparece un `font-size` fuera de la escala.
+
+La app es utilizable con teclado: los cursos, las secciones y los bloques de la
+grilla son `<button>`, hay anillo de foco en todo control, los modales atrapan
+el foco y se cierran con Escape. En pantallas de menos de 900px los paneles
+laterales pasan a ser cajones y la columna de horas de la grilla queda fija.
+
 ## Tests
 
-- `npm test` (Vitest). 77 tests sobre el optimizador, el motor de cruces, la
-  malla curricular, el layout de la grilla, el parser de Excel, la
-  normalizacion de parametros y los utilitarios.
+- `npm test` (Vitest). 127 tests sobre el optimizador, el motor de cruces, la
+  malla curricular, los filtros del catalogo, el layout de la grilla, el parser
+  de Excel, la normalizacion de parametros, los utilitarios y el contraste de
+  la paleta.
 
 ## Ejecutar en local
 
