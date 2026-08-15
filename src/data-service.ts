@@ -1,5 +1,4 @@
-﻿import * as XLSX from "xlsx";
-import { EXCEL_COURSES_FILE, EXCEL_TEACHERS_FILE } from "./constants";
+﻿import { EXCEL_COURSES_FILE, EXCEL_TEACHERS_FILE } from "./constants";
 import { normalizeCourseName, normalizeDay, normalizeTeacherName, parseHour } from "./utils";
 import type { CoursesData, TeacherScores } from "./types";
 
@@ -14,6 +13,19 @@ interface CourseColumns {
   fin: number;
 }
 
+/**
+ * Resultado de leer un Excel opcional.
+ * `error` solo se llena cuando el archivo existe pero no se pudo usar; que
+ * falte es un caso normal (se cae al JSON por defecto) y no se reporta.
+ */
+export interface ExcelLoad<T> {
+  data: T | null;
+  error?: string;
+}
+
+/** Marca un fallo de lectura distinguible de "el archivo no esta". */
+class ExcelError extends Error {}
+
 export async function loadDefaultData(): Promise<{ courses: CoursesData; scores: TeacherScores }> {
   const [courses, scores] = await Promise.all([
     fetchJson<CoursesData>("/data/courses.default.json"),
@@ -22,19 +34,18 @@ export async function loadDefaultData(): Promise<{ courses: CoursesData; scores:
   return { courses, scores };
 }
 
-export async function loadCoursesFromExcel(): Promise<CoursesData | null> {
-  try {
-    const rows = await readFirstSheetRows(EXCEL_COURSES_FILE);
+export async function loadCoursesFromExcel(): Promise<ExcelLoad<CoursesData>> {
+  return readExcel(EXCEL_COURSES_FILE, (rows) => {
     const parsed = buildCoursesFromRows(rows);
-    return Object.keys(parsed).length ? parsed : null;
-  } catch {
-    return null;
-  }
+    if (!Object.keys(parsed).length) {
+      throw new ExcelError("no se reconocieron columnas de cursos (CODIGO / NOMBRE DEL CURSO / SECCION)");
+    }
+    return parsed;
+  });
 }
 
-export async function loadTeacherScoresFromExcel(): Promise<TeacherScores | null> {
-  try {
-    const rows = await readFirstSheetRows(EXCEL_TEACHERS_FILE);
+export async function loadTeacherScoresFromExcel(): Promise<ExcelLoad<TeacherScores>> {
+  return readExcel(EXCEL_TEACHERS_FILE, (rows) => {
     const parsed: TeacherScores = {};
     for (let i = 1; i < rows.length; i++) {
       const row = rows[i] as unknown[];
@@ -43,20 +54,53 @@ export async function loadTeacherScoresFromExcel(): Promise<TeacherScores | null
       if (!docente || !Number.isFinite(nota)) continue;
       parsed[docente] = nota;
     }
-    return Object.keys(parsed).length ? parsed : null;
-  } catch {
-    return null;
+    if (!Object.keys(parsed).length) throw new ExcelError("no se encontraron pares docente/nota");
+    return parsed;
+  });
+}
+
+/** Lee un Excel opcional y traduce cualquier fallo real a un mensaje mostrable. */
+async function readExcel<T>(fileName: string, parse: (rows: unknown[][]) => T): Promise<ExcelLoad<T>> {
+  let rows: unknown[][];
+  try {
+    const found = await readFirstSheetRows(fileName);
+    if (!found) return { data: null };
+    rows = found;
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    return { data: null, error: `${baseName(fileName)}: ${detail}` };
+  }
+
+  try {
+    return { data: parse(rows) };
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    return { data: null, error: `${baseName(fileName)}: ${detail}` };
   }
 }
 
-async function readFirstSheetRows(fileName: string): Promise<unknown[][]> {
+/** Devuelve null si el archivo no existe; lanza si existe pero no se puede leer. */
+async function readFirstSheetRows(fileName: string): Promise<unknown[][] | null> {
   const res = await fetch(encodeURI(fileName), { cache: "no-store" });
-  if (!res.ok) throw new Error(`No se pudo leer ${fileName}`);
+  if (res.status === 404) return null;
+  if (!res.ok) throw new ExcelError(`respuesta ${res.status} del servidor`);
+
+  // El dev server de Vite responde 200 con index.html para archivos que no
+  // existen. Sin este chequeo, un Excel ausente parecia un Excel corrupto.
+  if ((res.headers.get("content-type") ?? "").includes("text/html")) return null;
+
   const buffer = await res.arrayBuffer();
+  // xlsx pesa ~350 kB: se carga solo si de verdad hay un Excel que leer.
+  const XLSX = await import("xlsx");
   const wb = XLSX.read(buffer, { type: "array" });
-  if (!wb.SheetNames.length) throw new Error(`Sin hojas en ${fileName}`);
+  if (!wb.SheetNames.length) throw new ExcelError("el archivo no tiene hojas");
+
   const ws = wb.Sheets[wb.SheetNames[0]];
   return XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" }) as unknown[][];
+}
+
+function baseName(path: string): string {
+  return path.split("/").pop() ?? path;
 }
 
 async function fetchJson<T>(url: string): Promise<T> {
@@ -72,7 +116,8 @@ function normalizeType(raw: unknown): string {
   return t;
 }
 
-function buildCoursesFromRows(rows: unknown[][]): CoursesData {
+/** Exportada para tests: convierte las filas crudas del Excel en el modelo de cursos. */
+export function buildCoursesFromRows(rows: unknown[][]): CoursesData {
   const out: CoursesData = {};
   const keyToName: Record<string, string> = {};
 

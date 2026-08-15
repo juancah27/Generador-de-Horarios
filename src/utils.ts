@@ -21,6 +21,22 @@ const DAY_ALIAS: Record<string, DayCode> = {
   SABADO: "SA",
 };
 
+const HTML_ESCAPES: Record<string, string> = {
+  "&": "&amp;",
+  "<": "&lt;",
+  ">": "&gt;",
+  '"': "&quot;",
+  "'": "&#39;",
+};
+
+/**
+ * Escapa texto que viene del Excel antes de meterlo en innerHTML.
+ * Sin esto, un nombre de curso con `&` o `<` rompe el marcado.
+ */
+export function escapeHtml(value: unknown): string {
+  return String(value ?? "").replace(/[&<>"']/g, (ch) => HTML_ESCAPES[ch]);
+}
+
 export function normalizeText(value: string): string {
   return value
     .normalize("NFD")

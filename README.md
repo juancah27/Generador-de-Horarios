@@ -30,7 +30,9 @@ Aplicacion web para organizar horarios de cursos FIIS con:
 
 ## Tests
 
-- `npm test` (Vitest). Cubre el optimizador y el layout de la grilla.
+- `npm test` (Vitest). 63 tests sobre el optimizador, el motor de cruces, el
+  layout de la grilla, el parser de Excel, la normalizacion de parametros y los
+  utilitarios.
 
 ## Ejecutar en local
 
@@ -63,7 +65,13 @@ La app intenta cargar automaticamente:
 - `public/data/CARGA HORARIA 2026-1 Oficial.xlsx`
 - `public/data/Tabla de Encuesta Docente en Excel.xlsx`
 
-Si no encuentra algun Excel, usa los JSON por defecto en `public/data/`.
+Si no encuentra algun Excel, usa los JSON por defecto en `public/data/` sin
+avisar: es un caso previsto. Si el archivo existe pero no se puede leer (esta
+corrupto, o le faltan las columnas `CODIGO` / `NOMBRE DEL CURSO` / `SECCION`),
+muestra el motivo en pantalla y cae a los JSON.
+
+La libreria `xlsx` se carga bajo demanda: la app pinta la grilla con los JSON
+antes de bajar los ~430 kB del parser.
 
 ## Parametros
 

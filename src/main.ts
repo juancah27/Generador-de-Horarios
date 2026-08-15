@@ -12,7 +12,7 @@ import { layoutBlocks, visibleHours } from "./grid-layout";
 import { loadCoursesFromExcel, loadDefaultData, loadTeacherScoresFromExcel } from "./data-service";
 import { runOptimizer, lookupTeacherScore } from "./optimizer";
 import { fillModalFromParams, normalizeParams, readParamsFromModal } from "./params";
-import { normalizeCourseName } from "./utils";
+import { escapeHtml, normalizeCourseName } from "./utils";
 import type { CoursesData, DayCode, OptimizerReport, ScheduleParams, SectionData, TeacherScores } from "./types";
 
 type FilterMode = "all" | "recommended" | "selected";
@@ -308,7 +308,7 @@ function updateMetricsBar(): void {
   }
 
   if (msgs.length) {
-    detailBar.innerHTML = `⚠ ${msgs.join(" &nbsp;|&nbsp; ")}`;
+    detailBar.innerHTML = `⚠ ${msgs.map(escapeHtml).join(" &nbsp;|&nbsp; ")}`;
     detailBar.classList.add("show");
   } else {
     detailBar.classList.remove("show");
@@ -322,12 +322,12 @@ function showTooltip(event: MouseEvent, block: { course: string; sec: SectionDat
   const teacherScore = getTeacherScore(block.sec.docente);
   const issues = hardViolationsForSection(block.sec, params);
   tooltip.innerHTML =
-    `<div class="tooltip-title">${block.course}</div>` +
-    `<div class="tooltip-row">Docente: <span>${block.sec.docente}</span></div>` +
+    `<div class="tooltip-title">${escapeHtml(block.course)}</div>` +
+    `<div class="tooltip-row">Docente: <span>${escapeHtml(block.sec.docente)}</span></div>` +
     (teacherScore !== null ? `<div class="tooltip-row">★ <span style="color:#4ade80">${teacherScore.toFixed(3)}</span></div>` : "") +
-    `<div class="tooltip-row">Sección: <span>${block.sec.secId ?? "-"}</span></div>` +
-    `<div class="tooltip-row">${block.cls.inicio}:00-${block.cls.fin}:00 [${block.cls.tipo}]</div>` +
-    (issues.length ? `<div style="color:#fcd34d;font-size:10px;margin-top:4px">⚠ ${issues.join(" · ")}</div>` : "") +
+    `<div class="tooltip-row">Sección: <span>${escapeHtml(block.sec.secId ?? "-")}</span></div>` +
+    `<div class="tooltip-row">${block.cls.inicio}:00-${block.cls.fin}:00 [${escapeHtml(block.cls.tipo)}]</div>` +
+    (issues.length ? `<div style="color:#fcd34d;font-size:10px;margin-top:4px">⚠ ${escapeHtml(issues.join(" · "))}</div>` : "") +
     `<div style="color:var(--muted);font-size:10px;margin-top:6px">Click para eliminar</div>`;
 
   tooltip.style.display = "block";
@@ -395,14 +395,16 @@ function updateSummary(): void {
     html +=
       `<div class="selected-course-item" style="${isBad ? "border-color:var(--danger)" : ""}">` +
       `<button class="sci-remove" data-course="${encodeURIComponent(course)}">×</button>` +
-      `<div class="sci-name"><span class="sci-color-dot" style="background:${dot}"></span>${course}</div>` +
-      `<div class="sci-detail">Sec. ${sec.secId ?? "-"} · ${sec.docente.split(",")[0]}</div>` +
-      `<div class="sci-detail">${sec.clases
-        .map((c) => `${DAY_NAME[String(c.dia).trim() as DayCode] ?? c.dia} ${c.inicio}-${c.fin} [${c.tipo}]`)
-        .join(" | ")}</div>` +
+      `<div class="sci-name"><span class="sci-color-dot" style="background:${dot}"></span>${escapeHtml(course)}</div>` +
+      `<div class="sci-detail">Sec. ${escapeHtml(sec.secId ?? "-")} · ${escapeHtml(sec.docente.split(",")[0])}</div>` +
+      `<div class="sci-detail">${escapeHtml(
+        sec.clases
+          .map((c) => `${DAY_NAME[String(c.dia).trim() as DayCode] ?? c.dia} ${c.inicio}-${c.fin} [${c.tipo}]`)
+          .join(" | "),
+      )}</div>` +
       (sc !== null ? `<div class="sci-score" style="color:${sc >= 17 ? "#4ade80" : sc >= 15 ? "#fcd34d" : "#f87171"}">★ ${sc.toFixed(3)} / 20</div>` : "") +
-      clashes.map((m) => `<div style="color:var(--danger);font-size:10px;margin-top:2px">⛔ ${m}</div>`).join("") +
-      issues.map((m) => `<div style="color:#fcd34d;font-size:10px;margin-top:1px">⚠ ${m}</div>`).join("") +
+      clashes.map((m) => `<div style="color:var(--danger);font-size:10px;margin-top:2px">⛔ ${escapeHtml(m)}</div>`).join("") +
+      issues.map((m) => `<div style="color:#fcd34d;font-size:10px;margin-top:1px">⚠ ${escapeHtml(m)}</div>`).join("") +
       "</div>";
   }
 
@@ -454,9 +456,9 @@ function renderGrid(): void {
         const shortName = block.course.length > 25 ? `${block.course.slice(0, 23)}…` : block.course;
         const score = getTeacherScore(block.sec.docente);
         el.innerHTML =
-          `<div class="cb-course">${shortName}</div>` +
-          `<div class="cb-info">${block.sec.docente.split(",")[0]}</div>` +
-          `<div class="cb-type">${block.cls.tipo} · ${block.sec.secId ?? "-"}${score !== null ? ` · ★${score.toFixed(1)}` : ""}</div>`;
+          `<div class="cb-course">${escapeHtml(shortName)}</div>` +
+          `<div class="cb-info">${escapeHtml(block.sec.docente.split(",")[0])}</div>` +
+          `<div class="cb-type">${escapeHtml(block.cls.tipo)} · ${escapeHtml(block.sec.secId ?? "-")}${score !== null ? ` · ★${score.toFixed(1)}` : ""}</div>`;
         el.addEventListener("mouseenter", (event) => showTooltip(event as MouseEvent, block));
         el.addEventListener("mousemove", (event) => moveTooltip(event as MouseEvent));
         el.addEventListener("mouseleave", hideTooltip);
@@ -559,21 +561,21 @@ function renderCourseList(): void {
             .map((c) => {
               const d = String(c.dia).trim() as DayCode;
               const issue = c.inicio < params.minHour || c.fin > params.maxHour || params.freeDays.includes(d);
-              return `<span class="schedule-chip day-${d}">${d} ${c.inicio}-${c.fin}·${c.tipo}${issue ? " ⚠" : ""}</span>`;
+              return `<span class="schedule-chip day-${escapeHtml(d)}">${escapeHtml(d)} ${c.inicio}-${c.fin}·${escapeHtml(c.tipo)}${issue ? " ⚠" : ""}</span>`;
             })
             .join("");
 
           const warns: string[] = [];
           if (wouldViolate) warns.push('<span style="color:var(--danger);font-size:10px">⛔ Viola regla de cruce</span>');
-          else if (issues.length) warns.push(`<span style="color:#fcd34d;font-size:10px">⚠ ${issues[0]}</span>`);
+          else if (issues.length) warns.push(`<span style="color:#fcd34d;font-size:10px">⚠ ${escapeHtml(issues[0])}</span>`);
 
           return (
             `<div class="section-card ${isActive ? "active" : ""}${wouldViolate && !isActive ? " conflict" : ""}" ` +
-            `data-course="${encodeURIComponent(courseName)}" data-sec="${sid}" ` +
+            `data-course="${encodeURIComponent(courseName)}" data-sec="${escapeHtml(sid)}" ` +
             `title="${wouldViolate && !isActive ? "Viola reglas de cruce" : "Seleccionar"}">` +
             '<div class="sec-top">' +
-            `<span class="sec-label">Sec. ${sid}</span>` +
-            `<span class="teacher-name">${sec.docente.includes("NN") ? "Por asignar" : sec.docente.split(",")[0]}</span>` +
+            `<span class="sec-label">Sec. ${escapeHtml(sid)}</span>` +
+            `<span class="teacher-name">${escapeHtml(sec.docente.includes("NN") ? "Por asignar" : sec.docente.split(",")[0])}</span>` +
             (sc !== null ? `<span class="teacher-score ${scoreClass(sc)}">★${sc.toFixed(1)}</span>` : "") +
             "</div>" +
             `<div class="sec-schedule">${chips}</div>` +
@@ -586,8 +588,8 @@ function renderCourseList(): void {
       return (
         `<div class="course-item ${isSelected ? "selected" : ""}${isBad ? " conflict-course" : ""} ${isOpen ? "open" : ""}" id="${cid}">` +
         `<div class="course-header" data-toggle="${encodeURIComponent(courseName)}">` +
-        `<span class="course-code">${code}</span>` +
-        `<span class="course-name">${courseName}${isRecommended ? '<span class="rec-tag">★ REC</span>' : ""}</span>` +
+        `<span class="course-code">${escapeHtml(code)}</span>` +
+        `<span class="course-name">${escapeHtml(courseName)}${isRecommended ? '<span class="rec-tag">★ REC</span>' : ""}</span>` +
         (isSelected ? '<span style="color:var(--accent3);font-size:12px">✓</span>' : "") +
         '<span class="course-toggle">▼</span></div>' +
         `<div class="sections-panel">${sectionsHtml}</div>` +
@@ -635,8 +637,8 @@ function showOptimizerReport(report: OptimizerReport): void {
     .map(
       (d) =>
         '<div style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);border-radius:8px;padding:10px 12px;margin-bottom:8px">' +
-        `<div style="font-weight:600;font-size:12px;color:#fca5a5">🚫 ${d.course}</div>` +
-        `<div style="font-size:11px;color:var(--muted);margin-top:3px;line-height:1.5">${d.reason}</div>` +
+        `<div style="font-weight:600;font-size:12px;color:#fca5a5">🚫 ${escapeHtml(d.course)}</div>` +
+        `<div style="font-size:11px;color:var(--muted);margin-top:3px;line-height:1.5">${escapeHtml(d.reason)}</div>` +
         `<div style="font-size:10px;color:var(--muted);margin-top:2px">${d.checked} secciones evaluadas</div>` +
         "</div>",
     )
@@ -646,8 +648,8 @@ function showOptimizerReport(report: OptimizerReport): void {
     .map(
       (m) =>
         '<div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.2);border-radius:8px;padding:10px 12px;margin-bottom:8px">' +
-        `<div style="font-weight:600;font-size:12px;color:#fcd34d">⚠ ${m.course}</div>` +
-        `<div style="font-size:11px;color:var(--muted);margin-top:3px">${m.issues.join(" · ")}</div>` +
+        `<div style="font-weight:600;font-size:12px;color:#fcd34d">⚠ ${escapeHtml(m.course)}</div>` +
+        `<div style="font-size:11px;color:var(--muted);margin-top:3px">${escapeHtml(m.issues.join(" · "))}</div>` +
         "</div>",
     )
     .join("");
@@ -815,9 +817,12 @@ async function init(): Promise<void> {
   coursesData = defaults.courses;
   teacherScores = defaults.scores;
 
-  const [loadedCourses, loadedScores] = await Promise.all([loadCoursesFromExcel(), loadTeacherScoresFromExcel()]);
-  if (loadedCourses) coursesData = loadedCourses;
-  if (loadedScores) teacherScores = loadedScores;
+  const [excelCourses, excelScores] = await Promise.all([
+    loadCoursesFromExcel(),
+    loadTeacherScoresFromExcel(),
+  ]);
+  if (excelCourses.data) coursesData = excelCourses.data;
+  if (excelScores.data) teacherScores = excelScores.data;
 
   refreshCourseLookup();
   updateTotalCoursesCount();
@@ -826,9 +831,18 @@ async function init(): Promise<void> {
   renderCourseList();
   renderGrid();
 
-  if (loadedCourses && loadedScores) showNotif("Cursos y notas cargados desde Excel", "success");
-  else if (loadedCourses) showNotif("Cursos cargados desde Excel", "success");
-  else if (loadedScores) showNotif("Notas de docentes cargadas desde Excel", "success");
+  // Un Excel ausente es normal (se usa el JSON base); uno ilegible hay que avisarlo.
+  const excelErrors = [excelCourses.error, excelScores.error].filter((e): e is string => Boolean(e));
+  if (excelErrors.length) {
+    console.warn("[horarios] Excel no utilizable:", excelErrors.join(" · "));
+    showNotif(`⚠ ${excelErrors[0]} — se usan los datos por defecto`, "warning");
+  } else if (excelCourses.data && excelScores.data) {
+    showNotif("Cursos y notas cargados desde Excel", "success");
+  } else if (excelCourses.data) {
+    showNotif("Cursos cargados desde Excel", "success");
+  } else if (excelScores.data) {
+    showNotif("Notas de docentes cargadas desde Excel", "success");
+  }
 
   // Solo genera automatico en el primer arranque; si habia horario guardado, se respeta.
   const restoredCount = Object.keys(selected).length;
