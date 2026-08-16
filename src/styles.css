@@ -432,6 +432,7 @@ h1, h2, h3, h4 { font-weight: 600; }
   scrollbar-width: thin;
   scrollbar-color: var(--decor) transparent;
 }
+.loading-msg { padding: var(--sp-3); text-align: center; color: var(--muted); font-size: var(--fs-sm); }
 
 /* =========================================================================
    CATALOGO
@@ -872,7 +873,7 @@ h1, h2, h3, h4 { font-weight: 600; }
   box-shadow: var(--sh-2);
   z-index: 10;
 }
-.class-block.conflict-block { border-color: var(--danger); background: rgba(239, 68, 68, 0.2); }
+.class-block.conflict-block { border-color: var(--danger); background: rgba(239, 68, 68, 0.2); color: var(--text); }
 
 .cb-course, .cb-info, .cb-type {
   display: block;
@@ -1017,7 +1018,7 @@ h1, h2, h3, h4 { font-weight: 600; }
   transition: background 0.15s var(--ease), color 0.15s var(--ease);
 }
 .sci-pin:hover { color: var(--accent-text); }
-.sci-pin.on { background: var(--accent); color: var(--accent-text); }
+.sci-pin.on { background: var(--accent); color: #fff; }
 .sci-color-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; }
 
 /*
@@ -1108,7 +1109,7 @@ h1, h2, h3, h4 { font-weight: 600; }
    ========================================================================= */
 .tooltip {
   position: fixed;
-  background: #1e293b;
+  background: var(--surface3);
   border-radius: var(--r-md);
   padding: var(--sp-3);
   font-size: var(--fs-sm);

@@ -61,7 +61,7 @@ const openCourses = new Set<string>();
 let courseNameLookup: Record<string, string> = {};
 let panelState: { sidebar: boolean; summary: boolean } = { sidebar: true, summary: true };
 let params: ScheduleParams = loadParamsState();
-let notifTimer = 0;
+let notifTimer: number | null = null;
 
 /**
  * Cursos fijados: el generador de alternativas les mantiene la seccion actual y
@@ -313,7 +313,7 @@ function showNotif(message: string, type: "success" | "error" | "warning" = "suc
   if (!node) return;
   node.textContent = message;
   node.className = `notification ${type} show`;
-  if (notifTimer) window.clearTimeout(notifTimer);
+  if (notifTimer !== null) window.clearTimeout(notifTimer);
   notifTimer = window.setTimeout(() => node.classList.remove("show"), 3200);
 }
 
@@ -365,7 +365,7 @@ function calcMetrics(sel: Record<string, SectionData> = selected):
   if (!Object.keys(sel).length) return null;
 
   const usedDays = new Set<DayCode>();
-  let minH = 99;
+  let minH = Infinity;
   let maxH = 0;
   let ttOv = 0;
   let tpOv = 0;
@@ -695,7 +695,6 @@ function renderGrid(): void {
           el.style.right = `${(block.lanes - 1 - block.lane) * width + 2}%`;
         }
 
-        const shortName = block.course.length > 25 ? `${block.course.slice(0, 23)}…` : block.course;
         const score = getTeacherScore(block.sec.docente);
         const dayName = DAY_NAME[day] ?? day;
         el.setAttribute(
@@ -705,7 +704,7 @@ function renderGrid(): void {
             `${block.isBad ? ", con cruce inválido" : ""}. Activar para quitarlo del horario.`,
         );
         el.innerHTML =
-          `<span class="cb-course">${escapeHtml(shortName)}</span>` +
+          `<span class="cb-course">${escapeHtml(block.course)}</span>` +
           `<span class="cb-info">${escapeHtml(block.sec.docente.split(",")[0])}</span>` +
           `<span class="cb-type">${escapeHtml(block.cls.tipo)} · ${escapeHtml(block.sec.secId ?? "-")}${score !== null ? ` · ${score.toFixed(1)}` : ""}</span>`;
         el.addEventListener("mouseenter", (event) => showTooltip(event as MouseEvent, block));
@@ -725,7 +724,7 @@ function renderGrid(): void {
   updateMetricsBar();
   updateSummary();
   updateHeader();
-  renderCourseList();
+  renderCourseList(bad);
 }
 
 /**
@@ -794,13 +793,13 @@ function refocus(selector: string): void {
   document.querySelector<HTMLElement>(selector)?.focus();
 }
 
-function renderCourseList(): void {
+function renderCourseList(bad?: Set<string>): void {
   const container = document.getElementById("courses-list");
   if (!container) return;
 
   updateTotalCoursesCount();
   const normalizedQuery = searchQ.trim().toLowerCase();
-  const bad = getViolators(selected, params);
+  const violators = bad ?? getViolators(selected, params);
 
   const allCourses = Object.keys(coursesData).sort();
   const courseList = filterCourses(
@@ -832,7 +831,7 @@ function renderCourseList(): void {
       const secs = coursesData[courseName];
       const isWanted = wanted.has(courseName);
       const hasSection = Boolean(selected[courseName]);
-      const isBad = bad.has(courseName);
+      const isBad = violators.has(courseName);
       const isOpen =
         openCourses.has(courseName) ||
         Boolean(normalizedQuery && courseName.toLowerCase().includes(normalizedQuery));
@@ -1252,7 +1251,7 @@ function exportSchedule(): void {
   link.href = URL.createObjectURL(blob);
   link.download = `horario_FIIS_${PERIOD_LABEL}.txt`;
   link.click();
-  URL.revokeObjectURL(link.href);
+  setTimeout(() => URL.revokeObjectURL(link.href), 100);
   showNotif(`Horario exportado como horario_FIIS_${PERIOD_LABEL}.txt`, "success");
 }
 
@@ -1484,6 +1483,8 @@ async function init(): Promise<void> {
   fillModalFromParams(params);
   wireControls();
 
+  try {
+
   document.querySelectorAll<HTMLElement>(".day-check").forEach((label) => {
     const cb = label.querySelector<HTMLInputElement>("input");
     if (!cb) return;
@@ -1493,10 +1494,12 @@ async function init(): Promise<void> {
 
   const searchInput = document.getElementById("search-input") as HTMLInputElement | null;
   if (searchInput) {
+    let searchTimer = 0;
     searchInput.addEventListener("input", (event) => {
       const target = event.target as HTMLInputElement;
       searchQ = target.value;
-      renderCourseList();
+      window.clearTimeout(searchTimer);
+      searchTimer = window.setTimeout(() => renderCourseList(), 150);
     });
   }
 
@@ -1559,6 +1562,11 @@ async function init(): Promise<void> {
   const intro = readIntroState();
   if (!intro) openIntro();
   else if (intro.cycle) applyCycleFilter(intro.cycle);
+
+  } catch (err) {
+    console.error("[horarios] Error durante la inicialización:", err);
+    showNotif("No se pudieron cargar los datos. Recargá la página.", "error");
+  }
 }
 
 void init();
