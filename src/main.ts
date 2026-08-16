@@ -6,7 +6,6 @@ import {
   DEFAULT_PARAMS,
   DOT_COLORS,
   PERIOD_LABEL,
-  RECOMMENDED,
 } from "./constants";
 import { causesViolation, clashReport, getViolators, hardViolationsForSection } from "./conflicts";
 import { filterCourses, type FilterMode } from "./course-filter";
@@ -18,7 +17,7 @@ import {
   loadDefaultData,
   loadTeacherScoresFromExcel,
 } from "./data-service";
-import { runOptimizer, runOptimizerVariants, lookupTeacherScore } from "./optimizer";
+import { runOptimizerVariants, lookupTeacherScore } from "./optimizer";
 import { fillModalFromParams, normalizeParams, readParamsFromModal } from "./params";
 import { escapeHtml, normalizeCourseName } from "./utils";
 import type {
@@ -51,11 +50,14 @@ let colorIdx = 0;
 let filter: FilterMode = "all";
 let searchQ = "";
 /**
- * Cursos que el usuario quiere en su horario, incluidos los que el optimizador
- * no pudo colocar. Sin esto, un curso descartado por un cambio de parametros
- * desaparecia para siempre de los intentos siguientes.
+ * Cursos que el usuario quiere, elija o no la seccion. Es la fuente de verdad de
+ * la seleccion: `selected` es el subconjunto que ya tiene una seccion concreta.
+ * Separarlos permite pedir el mejor horario sin elegir docente, y que un curso
+ * que el optimizador no pudo colocar siga contando en el proximo intento.
  */
-let desiredTargets: string[] = [];
+const wanted = new Set<string>();
+/** Cursos con el desplegable de secciones abierto. Solo dura la sesion. */
+const openCourses = new Set<string>();
 let courseNameLookup: Record<string, string> = {};
 let panelState: { sidebar: boolean; summary: boolean } = { sidebar: true, summary: true };
 let params: ScheduleParams = loadParamsState();
@@ -71,7 +73,11 @@ const pinned = new Set<string>();
 let variants: OptimizerReport[] = [];
 
 const SELECTED_KEY = "fiis_selected";
+const WANTED_KEY = "fiis_wanted";
 const PINNED_KEY = "fiis_pinned";
+const STATE_VERSION_KEY = "fiis_state_v";
+/** Subirla descarta de una vez el horario guardado que quedo invalido. */
+const STATE_VERSION = 3;
 const THEME_KEY = "fiis_theme";
 const INTRO_KEY = "fiis_intro";
 
@@ -111,7 +117,10 @@ function rowHeight(): number {
   return parseFloat(raw) || 44;
 }
 
-/** Guarda solo curso -> seccion; las clases se rehidratan desde `coursesData`. */
+/**
+ * Guarda la lista de cursos elegidos y, aparte, la seccion de los que ya tienen
+ * una. Las clases no se guardan: se rehidratan desde `coursesData`.
+ */
 function saveSelectedState(): void {
   try {
     const map: Record<string, string> = {};
@@ -119,26 +128,46 @@ function saveSelectedState(): void {
       if (sec.secId) map[course] = sec.secId;
     }
     localStorage.setItem(SELECTED_KEY, JSON.stringify(map));
+    localStorage.setItem(WANTED_KEY, JSON.stringify([...wanted]));
     localStorage.setItem(PINNED_KEY, JSON.stringify([...pinned]));
   } catch {
     // Ignore storage errors
   }
 }
 
-/** Rehidrata el horario guardado: curso -> seccion, colores y anclas. */
-function restoreSelectedState(): void {
-  let map: Record<string, string>;
+function readStored<T>(key: string): T | null {
   try {
-    const raw = localStorage.getItem(SELECTED_KEY);
-    if (!raw) return;
-    map = JSON.parse(raw) as Record<string, string>;
+    const raw = localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as T) : null;
   } catch {
-    return;
+    return null;
   }
+}
+
+/**
+ * Hasta la v1 el horario se autogeneraba solo en el primer arranque y se
+ * guardaba como si el usuario lo hubiera armado. Ese estado no se distingue de
+ * uno elegido a mano, asi que se descarta una vez y se arranca limpio.
+ */
+function dropStaleState(): void {
+  if (readStored<number>(STATE_VERSION_KEY) === STATE_VERSION) return;
+  try {
+    for (const key of [SELECTED_KEY, WANTED_KEY, PINNED_KEY, "fiis_params"]) localStorage.removeItem(key);
+    localStorage.setItem(STATE_VERSION_KEY, JSON.stringify(STATE_VERSION));
+  } catch {
+    // Ignore storage errors
+  }
+}
+
+/** Rehidrata los cursos elegidos, las secciones colocadas, los colores y las anclas. */
+function restoreSelectedState(): void {
+  dropStaleState();
+  const map = readStored<Record<string, string>>(SELECTED_KEY) ?? {};
 
   selected = {};
   colorMap = {};
   colorIdx = 0;
+  wanted.clear();
 
   for (const [savedName, secId] of Object.entries(map)) {
     const course = resolveCourseName(savedName);
@@ -147,24 +176,25 @@ function restoreSelectedState(): void {
     selected[course] = { ...sec, secId };
     colorMap[course] = COLORS[colorIdx % COLORS.length];
     colorIdx++;
+    wanted.add(course);
   }
 
-  desiredTargets = Object.keys(selected);
+  // Sin la clave nueva se cae al comportamiento viejo: quien ya tenia un horario
+  // guardado antes de que existieran los cursos sin seccion no pierde nada.
+  for (const savedName of readStored<string[]>(WANTED_KEY) ?? []) {
+    const course = resolveCourseName(savedName);
+    if (coursesData[course]) wanted.add(course);
+  }
+
   restorePinnedState();
 }
 
 /** Solo se restauran anclas de cursos que sobrevivieron a la rehidratacion. */
 function restorePinnedState(): void {
   pinned.clear();
-  try {
-    const raw = localStorage.getItem(PINNED_KEY);
-    if (!raw) return;
-    for (const savedName of JSON.parse(raw) as string[]) {
-      const course = resolveCourseName(savedName);
-      if (selected[course]) pinned.add(course);
-    }
-  } catch {
-    // Ignore storage errors
+  for (const savedName of readStored<string[]>(PINNED_KEY) ?? []) {
+    const course = resolveCourseName(savedName);
+    if (selected[course]) pinned.add(course);
   }
 }
 
@@ -462,8 +492,10 @@ function hideTooltip(): void {
 }
 
 function updateHeader(): void {
+  // Cuenta cursos elegidos, no colocados: si no, quien elige 5 sin generar todavia
+  // lee "0 seleccionados".
   const selectedCount = document.getElementById("selected-count");
-  if (selectedCount) selectedCount.textContent = `${Object.keys(selected).length} seleccionados`;
+  if (selectedCount) selectedCount.textContent = `${wanted.size} seleccionados`;
 }
 
 /** Creditos del horario, o null si no hay malla cargada. */
@@ -538,13 +570,15 @@ function updateSummary(): void {
 
   const bad = getViolators(selected, params);
   const selectedEntries = Object.entries(selected);
+  /** Cursos pedidos que todavia no tienen seccion, o que el optimizador no pudo colocar. */
+  const pending = [...wanted].filter((course) => !selected[course]);
 
-  if (!selectedEntries.length) {
+  if (!selectedEntries.length && !pending.length) {
     container.innerHTML =
       '<div class="empty-state">' +
       icon("pin", "empty-icon") +
       "<p>Todavía no elegiste cursos.</p>" +
-      '<p class="hint">Buscalos en el catálogo o pulsá <strong>Mejor horario automático</strong>.</p>' +
+      '<p class="hint">Elegilos en el catálogo y después pulsá <strong>Mejor horario automático</strong>.</p>' +
       "</div>";
     return;
   }
@@ -589,6 +623,17 @@ function updateSummary(): void {
         .map((m) => `<p class="sci-issue clash">${icon("ban")}${escapeHtml(m)}</p>`)
         .join("") +
       issues.map((m) => `<p class="sci-issue warn">${icon("alert")}${escapeHtml(m)}</p>`).join("") +
+      "</div>";
+  }
+
+  for (const course of pending) {
+    html +=
+      '<div class="selected-course-item is-pending">' +
+      `<button type="button" class="sci-remove" data-course="${encodeURIComponent(course)}">` +
+      icon("x") +
+      `<span class="sr-only">Quitar ${escapeHtml(course)} del horario</span></button>` +
+      `<div class="sci-name">${escapeHtml(course)}</div>` +
+      '<div class="sci-detail">Sin sección · pulsá <strong>Mejor horario automático</strong></div>' +
       "</div>";
   }
 
@@ -683,6 +728,25 @@ function renderGrid(): void {
   renderCourseList();
 }
 
+/**
+ * Agrega o quita un curso sin tocar la seccion: el optimizador la elige despues.
+ * Es la via normal para armar la lista de cursos; abrir el desplegable y fijar un
+ * docente es opcional.
+ */
+function toggleWanted(courseName: string): void {
+  if (wanted.has(courseName)) {
+    removeCourse(courseName);
+    return;
+  }
+  wanted.add(courseName);
+  renderGrid();
+  showNotif(`✓ ${courseName.slice(0, 24)} · pulsá Mejor horario automático`, "success");
+}
+
+/**
+ * Elegir una seccion a mano equivale a fijarla: el optimizador la respeta y
+ * acomoda el resto alrededor. Se suelta con la chincheta en «Mi horario».
+ */
 function selectSection(courseName: string, secId: string): void {
   const sec = coursesData[courseName]?.[secId];
   if (!sec) return;
@@ -692,21 +756,22 @@ function selectSection(courseName: string, secId: string): void {
   }
 
   selected[courseName] = { ...sec, secId };
-  if (!desiredTargets.includes(courseName)) desiredTargets.push(courseName);
+  wanted.add(courseName);
+  pinned.add(courseName);
   renderGrid();
 
   const bad = getViolators(selected, params);
   const issues = hardViolationsForSection(selected[courseName], params);
   if (bad.has(courseName)) showNotif(`⛔ Cruce inválido en ${courseName.slice(0, 25)}`, "error");
   else if (issues.length) showNotif(`⚠ Agregado con aviso: ${issues[0]}`, "warning");
-  else showNotif(`✓ ${courseName.slice(0, 28)} · Sec. ${secId}`, "success");
+  else showNotif(`📌 ${courseName.slice(0, 20)} · Sec. ${secId} fijada`, "success");
 }
 
 function removeCourse(courseName: string): void {
   delete selected[courseName];
   delete colorMap[courseName];
   pinned.delete(courseName);
-  desiredTargets = desiredTargets.filter((c) => c !== courseName);
+  wanted.delete(courseName);
   renderGrid();
   showNotif(`Eliminado: ${courseName.slice(0, 30)}`, "warning");
 }
@@ -715,10 +780,18 @@ function clearAll(): void {
   selected = {};
   colorMap = {};
   colorIdx = 0;
-  desiredTargets = [];
+  wanted.clear();
   pinned.clear();
   renderGrid();
   showNotif("Horario limpiado", "warning");
+}
+
+/**
+ * El catalogo se reescribe entero en cada render, asi que el boton que acaba de
+ * pulsarse ya no existe y el foco cae al body. Devuelve el foco a su reemplazo.
+ */
+function refocus(selector: string): void {
+  document.querySelector<HTMLElement>(selector)?.focus();
 }
 
 function renderCourseList(): void {
@@ -728,7 +801,6 @@ function renderCourseList(): void {
   updateTotalCoursesCount();
   const normalizedQuery = searchQ.trim().toLowerCase();
   const bad = getViolators(selected, params);
-  const recommendedSet = new Set(RECOMMENDED.map(resolveCourseName));
 
   const allCourses = Object.keys(coursesData).sort();
   const courseList = filterCourses(
@@ -738,8 +810,7 @@ function renderCourseList(): void {
       mode: filter,
       cycle: cycleFilter,
       kind: kindFilter,
-      recommended: recommendedSet,
-      selected: new Set(Object.keys(selected)),
+      selected: new Set(wanted),
     },
     { code: courseCode, malla: courseCurriculum },
   );
@@ -759,10 +830,12 @@ function renderCourseList(): void {
   container.innerHTML = courseList
     .map((courseName) => {
       const secs = coursesData[courseName];
-      const isSelected = Boolean(selected[courseName]);
+      const isWanted = wanted.has(courseName);
+      const hasSection = Boolean(selected[courseName]);
       const isBad = bad.has(courseName);
-      const isOpen = isSelected || (normalizedQuery && courseName.toLowerCase().includes(normalizedQuery));
-      const isRecommended = recommendedSet.has(courseName);
+      const isOpen =
+        openCourses.has(courseName) ||
+        Boolean(normalizedQuery && courseName.toLowerCase().includes(normalizedQuery));
       const code = Object.values(secs)[0]?.codigo ?? "";
       const cid = `ci-${courseName.replace(/\W/g, "_")}`;
 
@@ -770,7 +843,7 @@ function renderCourseList(): void {
         .map(([sid, sd]) => {
           const sec = { ...sd, secId: sid };
           const sc = getTeacherScore(sec.docente);
-          const isActive = isSelected && selected[courseName].secId === sid;
+          const isActive = hasSection && selected[courseName].secId === sid;
           const issues = hardViolationsForSection(sec, params);
           const wouldViolate = !isActive && Object.keys(selected).length > 0 && causesViolation(courseName, sec, selected, params);
 
@@ -822,29 +895,47 @@ function renderCourseList(): void {
           : "";
 
       const panelId = `${cid}-secs`;
+      const encoded = encodeURIComponent(courseName);
+      const secCount = Object.keys(secs).length;
       return (
-        `<div class="course-item${isSelected ? " selected" : ""}${isBad ? " conflict-course" : ""}${isOpen ? " open" : ""}" id="${cid}">` +
-        `<button type="button" class="course-header" data-toggle="${encodeURIComponent(courseName)}" ` +
-        `aria-expanded="${Boolean(isOpen)}" aria-controls="${panelId}">` +
+        `<div class="course-item${isWanted ? " selected" : ""}${isBad ? " conflict-course" : ""}${isOpen ? " open" : ""}" id="${cid}">` +
+        '<div class="course-header">' +
+        `<button type="button" class="course-pick" data-pick="${encoded}" aria-pressed="${isWanted}">` +
         `<span class="course-code">${escapeHtml(code)}</span>` +
-        `<span class="course-name">${escapeHtml(courseName)}${isRecommended ? `<span class="rec-tag">${icon("star")}REC</span>` : ""}</span>` +
+        `<span class="course-name">${escapeHtml(courseName)}</span>` +
         mallaTags +
-        (isSelected ? `<span class="course-selected-mark">${icon("check")}<span class="sr-only">En tu horario</span></span>` : "") +
-        `<span class="course-toggle">${icon("chevron")}</span></button>` +
+        (isWanted ? `<span class="course-selected-mark">${icon("check")}<span class="sr-only">En tu horario</span></span>` : "") +
+        "</button>" +
+        `<button type="button" class="course-toggle" data-toggle="${encoded}" ` +
+        `aria-expanded="${isOpen}" aria-controls="${panelId}">${icon("chevron")}` +
+        `<span class="sr-only">Ver las ${secCount} secciones de ${escapeHtml(courseName)}</span></button>` +
+        "</div>" +
         `<div class="sections-panel" id="${panelId}">${prereqs}${sectionsHtml}</div>` +
         "</div>"
       );
     })
     .join("");
 
+  container.querySelectorAll<HTMLElement>("[data-pick]").forEach((el) => {
+    el.addEventListener("click", () => {
+      const encoded = el.dataset.pick;
+      if (!encoded) return;
+      toggleWanted(decodeURIComponent(encoded));
+      refocus(`[data-pick="${encoded}"]`);
+    });
+  });
+
+  // Abrir es estado, no solo una clase: `renderCourseList` corre en cada cambio
+  // del horario y antes cerraba de golpe todo lo que el usuario habia abierto.
   container.querySelectorAll<HTMLElement>("[data-toggle]").forEach((el) => {
     el.addEventListener("click", () => {
       const encoded = el.dataset.toggle;
       if (!encoded) return;
       const courseName = decodeURIComponent(encoded);
-      const item = document.getElementById(`ci-${courseName.replace(/\W/g, "_")}`);
-      const open = item?.classList.toggle("open") ?? false;
-      el.setAttribute("aria-expanded", String(open));
+      if (openCourses.has(courseName)) openCourses.delete(courseName);
+      else openCourses.add(courseName);
+      renderCourseList();
+      refocus(`[data-toggle="${encoded}"]`);
     });
   });
 
@@ -911,30 +1002,18 @@ function closeReport(): void {
 }
 
 /**
- * Cursos que el optimizador debe intentar colocar.
- * Si el usuario ya eligio cursos, esos mandan: el generador reordena sus
- * secciones en vez de reemplazarle el horario por la lista recomendada.
+ * Cursos que el optimizador debe intentar colocar: exactamente los que el
+ * usuario eligio. Sin lista de respaldo — proponer cursos que nadie pidio
+ * terminaba mezclandolos con la seleccion real.
  */
 function optimizerTargets(): string[] {
-  const userPicked = [...new Set([...Object.keys(selected), ...desiredTargets])].filter(
-    (c) => coursesData[c],
-  );
-  if (userPicked.length) return userPicked;
-
-  const recommended: string[] = [];
-  for (const c of RECOMMENDED) {
-    const resolved = resolveCourseName(c);
-    if (coursesData[resolved] && !recommended.includes(resolved)) recommended.push(resolved);
-  }
-  if (recommended.length) return recommended.slice(0, params.maxCourses);
-
-  return Object.keys(coursesData).slice(0, params.maxCourses);
+  return [...wanted].filter((c) => coursesData[c]);
 }
 
 function autoSelectBest(): void {
   const targets = optimizerTargets();
   if (!targets.length) {
-    showNotif("No hay cursos cargados", "warning");
+    showNotif("Elegí cursos en el catálogo primero", "warning");
     return;
   }
 
@@ -942,8 +1021,14 @@ function autoSelectBest(): void {
   const effective =
     targets.length > params.maxCourses ? { ...params, maxCourses: targets.length } : params;
 
-  const report = runOptimizer(targets, coursesData, teacherScores, effective);
-  desiredTargets = targets;
+  // `pinned` incluye las secciones elegidas a mano: regenerar acomoda el resto
+  // alrededor de ellas en vez de pisarlas.
+  const report = runOptimizerVariants(targets, coursesData, teacherScores, effective, {
+    count: 1,
+    pinned: pinnedSections(),
+  })[0];
+
+  for (const course of targets) wanted.add(course);
   selected = report.placed;
   colorMap = report.colorMap;
   colorIdx = report.colorIdx;
@@ -959,7 +1044,7 @@ const MINI_ROW = 9;
 function openVariants(): void {
   const targets = optimizerTargets();
   if (!targets.length) {
-    showNotif("No hay cursos cargados", "warning");
+    showNotif("Elegí cursos en el catálogo primero", "warning");
     return;
   }
 
@@ -999,7 +1084,7 @@ function applyVariant(index: number): void {
   selected = { ...report.placed };
   colorMap = { ...report.colorMap };
   colorIdx = report.colorIdx;
-  desiredTargets = [...new Set([...Object.keys(selected), ...desiredTargets])];
+  for (const course of Object.keys(selected)) wanted.add(course);
 
   closeModal("modal-variants");
   renderGrid();
@@ -1469,8 +1554,7 @@ async function init(): Promise<void> {
 
   // El horario nunca se genera solo: arranca vacio y lo arma el boton
   // "Mejor horario automatico" cuando el usuario lo pide.
-  const restoredCount = Object.keys(selected).length;
-  if (restoredCount) showNotif(`Horario restaurado con ${restoredCount} cursos`, "success");
+  if (wanted.size) showNotif(`Horario restaurado con ${wanted.size} cursos`, "success");
 
   const intro = readIntroState();
   if (!intro) openIntro();

@@ -2,6 +2,8 @@
 
 Aplicacion web para organizar horarios de cursos FIIS con:
 
+- Se eligen cursos, no secciones: elegir docente es opcional y el optimizador
+  resuelve el resto. La seccion que elijas a mano queda fijada.
 - Reglas de cruce configurables (T/T, T/P y P/P bloqueado).
 - Parametros estrictos de horario (hora minima, hora maxima, dias libres).
 - Optimizador con backtracking: busca la combinacion de secciones que coloca la
@@ -168,9 +170,6 @@ cursos ofertados** (`offeredCycles` en `src/curriculum.ts`): los ciclos salen de
 la malla y los cursos de la carga horaria, asi que elegir un ciclo sin oferta
 dejaria el catalogo vacio.
 
-En el primer arranque el horario se arma en silencio, sin el modal de reporte
-del optimizador: dos modales abiertos a la vez se pelean la trampa de foco.
-
 ## Alternativas de horario
 
 El boton **Alternativas** corre la misma busqueda que **Mejor horario
@@ -199,14 +198,17 @@ Los parametros del optimizador se validan y se guardan en `localStorage` (`fiis_
 
 Tambien se guardan en `localStorage`:
 
-- `fiis_selected`: los cursos y secciones de tu horario.
-- `fiis_pinned`: los cursos fijados para el generador de alternativas.
+- `fiis_wanted`: los cursos que elegiste, tengan seccion asignada o no.
+- `fiis_selected`: la seccion de los que ya la tienen.
+- `fiis_pinned`: los cursos fijados, incluidos los que elegiste seccion a mano.
+- `fiis_state_v`: version de esos tres. Subir `STATE_VERSION` en `src/main.ts`
+  los descarta una vez a todos, para cuando el estado guardado queda invalido.
 - `fiis_intro`: version del tutorial ya visto y el ciclo elegido. Subir
   `INTRO_VERSION` en `src/main.ts` lo vuelve a mostrar una vez a todos.
 - `fiis_panel_state`: que paneles laterales dejaste abiertos.
 - `fiis_theme`: si elegiste tema claro u oscuro.
 
-El generador automatico solo corre solo la primera vez. Despues respeta lo que
-tengas guardado, y al pulsar **Mejor horario automatico** trabaja sobre los
-cursos que vos elegiste en vez de reemplazarlos por la lista recomendada.
+El horario nunca se genera solo: arranca vacio y **Mejor horario automatico**
+trabaja exactamente sobre los cursos que elegiste, sin agregar ninguno. Sin
+cursos elegidos, avisa en vez de proponer una lista.
 

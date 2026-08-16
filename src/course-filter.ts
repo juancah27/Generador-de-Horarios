@@ -1,6 +1,6 @@
 import type { CurriculumCourse } from "./types";
 
-export type FilterMode = "all" | "recommended" | "selected";
+export type FilterMode = "all" | "selected";
 
 export interface CourseFilters {
   /** Texto libre: matchea contra el nombre y contra el codigo del curso. */
@@ -10,7 +10,6 @@ export interface CourseFilters {
   cycle: string;
   /** Tipo de curso ("" = sin filtrar). */
   kind: string;
-  recommended: Set<string>;
   selected: Set<string>;
 }
 
@@ -41,7 +40,6 @@ export function filterCourses(
       if (!matches) return false;
     }
 
-    if (filters.mode === "recommended" && !filters.recommended.has(course)) return false;
     if (filters.mode === "selected" && !filters.selected.has(course)) return false;
 
     if (filters.cycle || filters.kind) {

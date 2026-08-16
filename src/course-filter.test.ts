@@ -39,7 +39,6 @@ const base: CourseFilters = {
   mode: "all",
   cycle: "",
   kind: "",
-  recommended: new Set(["CALCULO DIFERENCIAL"]),
   selected: new Set(["ERGONOMIA"]),
 };
 
@@ -95,10 +94,6 @@ describe("filterCourses", () => {
 
   it("no filtra por ciclo a electivos y complementarios, que no tienen ciclo", () => {
     expect(run({ cycle: "1" })).toEqual(["CALCULO DIFERENCIAL"]);
-  });
-
-  it("respeta la pestana de recomendados", () => {
-    expect(run({ mode: "recommended" })).toEqual(["CALCULO DIFERENCIAL"]);
   });
 
   it("respeta la pestana de seleccionados", () => {

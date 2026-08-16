@@ -1,15 +1,5 @@
 ﻿import type { DayCode, ScheduleParams } from "./types";
 
-export const RECOMMENDED = [
-  "AUTOMATIZACION Y CONTROL DE PROCESOS",
-  "INGENIERIA DEL PRODUCTO",
-  "TALLER DE PROYECTO DE INVESTIGACION",
-  "INNOVACION Y EMPRENDIMIENTO DE NEGOCIOS",
-  "PLANEAMIENTO Y CONTROL DE OPERACIONES",
-  "SEGURIDAD Y SALUD OCUPACIONAL",
-  "PLANEAMIENTO Y GESTION ESTRATEGICA",
-];
-
 export const DAYS: DayCode[] = ["LU", "MA", "MI", "JU", "VI", "SA"];
 export const DAY_NAME: Record<DayCode, string> = {
   LU: "Lunes",
@@ -49,13 +39,19 @@ export const DOT_COLORS = [
 export const T_TYPES = ["T"];
 export const P_TYPES = ["P", "PRA", "PC", "LAB"];
 
+/**
+ * Estado base: no descarta ninguna seccion de entrada. `minHour`/`maxHour` y
+ * `freeDays` son restricciones duras (`hardViolationsForSection`), asi que
+ * arrancan cubriendo toda la franja de la carga horaria (8:00-22:00, sabado
+ * incluido). Restringir es decision del usuario, no punto de partida.
+ */
 export const DEFAULT_PARAMS: ScheduleParams = {
   ruleTT: 4,
   ruleTP: 2,
-  minHour: 16,
+  minHour: 8,
   maxHour: 22,
-  freeDays: ["SA"],
-  priority: "late",
+  freeDays: [],
+  priority: "balanced",
   maxCourses: 7,
   allowPartial: true,
 };

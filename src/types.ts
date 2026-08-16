@@ -71,18 +71,3 @@ export interface Curriculum {
   requirements: GradeRequirement[];
   cycles: number[];
 }
-
-export interface AppState {
-  coursesData: CoursesData;
-  teacherScores: TeacherScores;
-  selected: Record<string, SectionData>;
-  colorMap: Record<string, string>;
-  colorIdx: number;
-  filter: "all" | "recommended" | "selected";
-  searchQ: string;
-  params: ScheduleParams;
-  panelState: {
-    sidebar: boolean;
-    summary: boolean;
-  };
-}

@@ -192,7 +192,8 @@ h1, h2, h3, h4 { font-weight: 600; }
   border-radius: var(--r-sm);
 }
 .section-card:focus-visible,
-.course-header:focus-visible,
+.course-pick:focus-visible,
+.course-toggle:focus-visible,
 .class-block:focus-visible { outline-offset: -2px; }
 
 .sr-only {
@@ -446,17 +447,31 @@ h1, h2, h3, h4 { font-weight: 600; }
 .course-item.selected { border-color: var(--accent); background: rgba(59, 130, 246, 0.08); }
 .course-item.conflict-course { border-color: var(--danger); background: rgba(239, 68, 68, 0.06); }
 
+/*
+ * Dos controles independientes: el nombre agrega o quita el curso del horario,
+ * el chevron solo abre el desplegable de docentes. Por eso la cabecera dejo de
+ * ser un boton (un boton no puede contener otro).
+ */
 .course-header {
   display: flex;
   align-items: center;
   width: 100%;
   padding: var(--sp-2) var(--sp-2);
   min-height: 36px;
+  gap: var(--sp-2);
+}
+.course-pick {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  gap: var(--sp-2);
   background: none;
   border: none;
+  padding: 0;
   text-align: left;
   cursor: pointer;
-  gap: var(--sp-2);
+  color: inherit;
 }
 .course-code {
   font-family: var(--font-mono);
@@ -465,24 +480,24 @@ h1, h2, h3, h4 { font-weight: 600; }
   min-width: 46px;
 }
 .course-name { flex: 1; font-size: var(--fs-sm); font-weight: 500; line-height: 1.35; }
-.course-toggle { color: var(--muted); transition: transform 0.2s var(--ease); }
+.course-toggle {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  min-height: 32px;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: var(--muted);
+  transition: transform 0.2s var(--ease);
+}
+.course-toggle:hover { color: var(--text); }
 .course-item.open .course-toggle { transform: rotate(180deg); }
 .course-item.selected .course-name { color: var(--lunes); }
 .course-selected-mark { color: var(--ok-text); display: inline-flex; }
-
-.rec-tag {
-  background: rgba(16, 185, 129, 0.2);
-  color: var(--jueves);
-  border-radius: var(--r-sm);
-  padding: 1px 5px;
-  font-size: var(--fs-2xs);
-  font-weight: 700;
-  margin-left: var(--sp-1);
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  white-space: nowrap;
-}
 
 .sections-panel {
   display: none;
@@ -956,6 +971,9 @@ h1, h2, h3, h4 { font-weight: 600; }
   position: relative;
 }
 .selected-course-item.is-bad { border-color: var(--danger); }
+/* Pedido pero todavia sin seccion: sin chincheta, solo el boton de quitar. */
+.selected-course-item.is-pending { background: none; border-style: dashed; }
+.selected-course-item.is-pending .sci-name { color: var(--muted); padding-right: 30px; }
 /* Dos controles en la esquina (quitar y fijar): el nombre no debe pasar por debajo. */
 .sci-name { font-size: var(--fs-sm); font-weight: 600; margin-bottom: var(--sp-1); padding-right: 56px; }
 .sci-detail { font-size: var(--fs-xs); color: var(--muted); margin-bottom: 2px; }
