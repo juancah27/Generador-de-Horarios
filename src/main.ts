@@ -125,19 +125,15 @@ function saveSelectedState(): void {
   }
 }
 
-/**
- * Rehidrata el horario guardado.
- * Devuelve true si existia estado guardado — incluso vacio — para no
- * regenerar automaticamente encima de un horario que el usuario limpio.
- */
-function restoreSelectedState(): boolean {
+/** Rehidrata el horario guardado: curso -> seccion, colores y anclas. */
+function restoreSelectedState(): void {
   let map: Record<string, string>;
   try {
     const raw = localStorage.getItem(SELECTED_KEY);
-    if (!raw) return false;
+    if (!raw) return;
     map = JSON.parse(raw) as Record<string, string>;
   } catch {
-    return false;
+    return;
   }
 
   selected = {};
@@ -155,7 +151,6 @@ function restoreSelectedState(): boolean {
 
   desiredTargets = Object.keys(selected);
   restorePinnedState();
-  return true;
 }
 
 /** Solo se restauran anclas de cursos que sobrevivieron a la rehidratacion. */
@@ -936,12 +931,7 @@ function optimizerTargets(): string[] {
   return Object.keys(coursesData).slice(0, params.maxCourses);
 }
 
-/**
- * `showReport` en false para el primer arranque: el reporte abre un modal y se
- * apilaria con el tutorial, y solo hay un `modalOpener`, asi que dos modales
- * abiertos se pelean el foco.
- */
-function autoSelectBest(showReport = true): void {
+function autoSelectBest(): void {
   const targets = optimizerTargets();
   if (!targets.length) {
     showNotif("No hay cursos cargados", "warning");
@@ -958,7 +948,7 @@ function autoSelectBest(showReport = true): void {
   colorMap = report.colorMap;
   colorIdx = report.colorIdx;
   renderGrid();
-  if (showReport) showOptimizerReport(report);
+  showOptimizerReport(report);
 }
 
 /** Cuantas alternativas se ofrecen. Mas de seis y la galeria deja de compararse de un vistazo. */
@@ -1458,7 +1448,7 @@ async function init(): Promise<void> {
   refreshCourseLookup();
   updateTotalCoursesCount();
 
-  const restored = restoreSelectedState();
+  restoreSelectedState();
   renderCourseList();
   renderGrid();
 
@@ -1477,17 +1467,13 @@ async function init(): Promise<void> {
     showNotif("Notas de docentes cargadas desde Excel", "success");
   }
 
-  // Solo genera automatico en el primer arranque; si habia horario guardado, se respeta.
-  const intro = readIntroState();
-  const firstRun = !intro;
+  // El horario nunca se genera solo: arranca vacio y lo arma el boton
+  // "Mejor horario automatico" cuando el usuario lo pide.
   const restoredCount = Object.keys(selected).length;
+  if (restoredCount) showNotif(`Horario restaurado con ${restoredCount} cursos`, "success");
 
-  // En el primer uso el horario se arma en silencio: el tutorial va encima y el
-  // reporte del optimizador no debe competir por la pantalla.
-  if (!restored) autoSelectBest(!firstRun);
-  else if (restoredCount) showNotif(`Horario restaurado con ${restoredCount} cursos`, "success");
-
-  if (firstRun) openIntro();
+  const intro = readIntroState();
+  if (!intro) openIntro();
   else if (intro.cycle) applyCycleFilter(intro.cycle);
 }
 
