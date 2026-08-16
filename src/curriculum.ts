@@ -101,6 +101,24 @@ export function creditsByKind(
   return { total, byKind, sinMalla };
 }
 
+/**
+ * Ciclos del plan que tienen al menos un curso ofertado, ordenados.
+ *
+ * `Curriculum.cycles` trae los diez ciclos del plan, pero la oferta de un
+ * periodo no los cubre todos. Filtrar el catalogo por un ciclo sin oferta lo
+ * deja vacio, asi que quien ofrezca ciclos para elegir debe usar esta lista.
+ */
+export function offeredCycles(curriculum: Curriculum, codes: string[]): number[] {
+  const found = new Set<number>();
+
+  for (const code of codes) {
+    const ciclo = curriculum.byCode[code.trim().toUpperCase()]?.ciclo;
+    if (ciclo !== null && ciclo !== undefined) found.add(ciclo);
+  }
+
+  return [...found].sort((a, b) => a - b);
+}
+
 /** Etiqueta corta para las insignias del catalogo. */
 export function kindLabel(tipo: CourseKind): string {
   if (tipo === "Obligatorio") return "OBL";

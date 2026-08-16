@@ -6,6 +6,8 @@ Aplicacion web para organizar horarios de cursos FIIS con:
 - Parametros estrictos de horario (hora minima, hora maxima, dias libres).
 - Optimizador con backtracking: busca la combinacion de secciones que coloca la
   mayor cantidad de cursos, no la primera que encuentra.
+- Alternativas: varios horarios con el mismo maximo de cursos y distinto reparto
+  de docentes, comparables lado a lado, con cursos fijables.
 - Priorizacion por docente, dias libres, compactacion o horario tarde.
 - Carga de cursos y notas docentes desde archivos Excel.
 - Malla curricular: ciclo, tipo (obligatorio / electivo / complementario),
@@ -26,7 +28,8 @@ Aplicacion web para organizar horarios de cursos FIIS con:
 - `src/data-service.ts`: carga de JSON base y Excel.
 - `src/styles.css`: tokens y estilos. Los colores son tokens, no hex sueltos.
 - `src/conflicts.ts`: motor de cruces y violaciones.
-- `src/optimizer.ts`: busqueda con backtracking y ranking de secciones.
+- `src/optimizer.ts`: busqueda con backtracking, ranking de secciones y
+  generacion de alternativas.
 - `src/curriculum.ts`: malla curricular (ciclos, tipos, creditos, prerequisitos).
 - `src/grid-layout.ts`: carriles y rango horario de la grilla semanal.
 - `src/params.ts`: normalizacion y lectura/escritura de parametros.
@@ -74,7 +77,7 @@ laterales pasan a ser cajones y la columna de horas de la grilla queda fija.
 
 ## Tests
 
-- `npm test` (Vitest). 198 tests sobre el optimizador, el motor de cruces, la
+- `npm test` (Vitest). 241 tests sobre el optimizador, el motor de cruces, la
   malla curricular, los filtros del catalogo, el layout de la grilla, el parser
   de Excel, la normalizacion de parametros, los utilitarios y el contraste de
   la paleta en los dos temas.
@@ -149,6 +152,47 @@ Industrial, asi que hay cursos ofertados sin datos de malla (los de Sistemas,
 prefijos `SI` y `SW`). Esos cursos se pueden elegir igual: aparecen sin
 insignias y se cuentan aparte en el panel de creditos.
 
+## Primer uso
+
+La primera vez que se abre la app en un navegador aparece un asistente de tres
+pasos: carrera, ciclo y un resumen de lo que se puede hacer (buscar cursos de
+cualquier ciclo, ajustar **Parametros**, comparar **Alternativas**). El boton de
+ayuda de la cabecera lo reabre cuando se quiera.
+
+La carrera es informativa: no existe como dato en la carga horaria ni en la
+malla, y la unica malla cargada es la de Ingenieria Industrial.
+
+El ciclo si hace algo: filtra el catalogo, igual que el selector del panel
+lateral, y se guarda para las proximas visitas. Solo se ofrecen ciclos **con
+cursos ofertados** (`offeredCycles` en `src/curriculum.ts`): los ciclos salen de
+la malla y los cursos de la carga horaria, asi que elegir un ciclo sin oferta
+dejaria el catalogo vacio.
+
+En el primer arranque el horario se arma en silencio, sin el modal de reporte
+del optimizador: dos modales abiertos a la vez se pelean la trampa de foco.
+
+## Alternativas de horario
+
+El boton **Alternativas** corre la misma busqueda que **Mejor horario
+automatico**, pero en vez de quedarse con la mejor combinacion retiene una por
+cada reparto distinto de docentes. La galeria muestra hasta seis, con el
+promedio de notas, los cursos, las horas, los dias usados y una vista previa de
+la semana. **Usar este horario** aplica la elegida.
+
+Todas las alternativas colocan la misma cantidad de cursos: una con menos cursos
+no es una alternativa, es un horario peor. Si con los cursos y parametros
+actuales solo hay un reparto posible, el modal lo dice en vez de mostrar una
+sola tarjeta sin explicacion.
+
+Como las mejores por puntaje suelen diferir en un solo docente, se prefiere
+completar la galeria con las que cambian al menos dos antes de caer en las que
+cambian una: seis tarjetas casi iguales no ayudan a decidir.
+
+El boton de chincheta de cada curso en **Mi horario** lo fija: su seccion se
+mantiene en todas las alternativas y el resto varia alrededor. Se guarda el
+curso, no la seccion, asi que cambiar de seccion a mano no deja un ancla vieja
+apuntando a la anterior.
+
 ## Parametros
 
 Los parametros del optimizador se validan y se guardan en `localStorage` (`fiis_params`) para mantener tu configuracion entre sesiones.
@@ -156,6 +200,9 @@ Los parametros del optimizador se validan y se guardan en `localStorage` (`fiis_
 Tambien se guardan en `localStorage`:
 
 - `fiis_selected`: los cursos y secciones de tu horario.
+- `fiis_pinned`: los cursos fijados para el generador de alternativas.
+- `fiis_intro`: version del tutorial ya visto y el ciclo elegido. Subir
+  `INTRO_VERSION` en `src/main.ts` lo vuelve a mostrar una vez a todos.
 - `fiis_panel_state`: que paneles laterales dejaste abiertos.
 - `fiis_theme`: si elegiste tema claro u oscuro.
 

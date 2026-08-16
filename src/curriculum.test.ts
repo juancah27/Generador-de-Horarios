@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildCurriculum, creditsByKind, kindLabel } from "./curriculum";
+import { buildCurriculum, creditsByKind, kindLabel, offeredCycles } from "./curriculum";
 
 const CURSOS = [
   ["CodigoCurso", "NombreCurso", "Creditos", "TipoCurso", "CicloPlan"],
@@ -118,6 +118,34 @@ describe("creditsByKind", () => {
 
   it("tolera codigos en minuscula o con espacios", () => {
     expect(creditsByKind(malla, [" bma01 "]).total).toBe(5);
+  });
+});
+
+describe("offeredCycles", () => {
+  it("devuelve solo los ciclos con oferta, ordenados", () => {
+    // La malla tiene los ciclos 1 y 2; este periodo solo se dicta el 2.
+    expect(offeredCycles(malla, ["BMA02"])).toEqual([2]);
+    expect(offeredCycles(malla, ["BMA02", "BMA01"])).toEqual([1, 2]);
+  });
+
+  it("no repite un ciclo con varios cursos ofertados", () => {
+    expect(offeredCycles(malla, ["BMA01", "BMA01"])).toEqual([1]);
+  });
+
+  it("ignora los codigos que no estan en la malla", () => {
+    expect(offeredCycles(malla, ["SI205", "SW101"])).toEqual([]);
+  });
+
+  it("ignora los cursos sin ciclo", () => {
+    expect(offeredCycles(malla, ["GE114", "TE121"])).toEqual([]);
+  });
+
+  it("devuelve vacio sin codigos", () => {
+    expect(offeredCycles(malla, [])).toEqual([]);
+  });
+
+  it("tolera codigos en minuscula o con espacios", () => {
+    expect(offeredCycles(malla, [" bma01 "])).toEqual([1]);
   });
 });
 

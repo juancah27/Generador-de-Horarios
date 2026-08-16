@@ -99,6 +99,8 @@
 
   /* Alto de una fila horaria de la grilla. main.ts lo lee para posicionar bloques. */
   --row-h: 44px;
+  /* Alto de una hora en la vista previa de las alternativas. Espeja MINI_ROW de main.ts. */
+  --mini-row: 9px;
   --header-h: 61px;
 
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
@@ -278,6 +280,26 @@ h1, h2, h3, h4 { font-weight: 600; }
 .stat-chip .dot { width: 6px; height: 6px; border-radius: 50%; }
 .dot-total { background: var(--accent); }
 .dot-sel { background: var(--accent3); }
+
+/*
+ * Boton suelto de la cabecera. Es el cuadro de .theme-toggle sin el intercambio
+ * sol/luna, que depende de position: absolute en los iconos.
+ */
+.header-action {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  border-radius: var(--r-md);
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--muted);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s var(--ease), border-color 0.15s var(--ease), background 0.15s var(--ease);
+}
+.header-action:hover { color: var(--text); border-color: var(--accent); background: var(--surface3); }
 
 /* Conmutador de tema: sol y luna, uno visible por vez. */
 .theme-toggle {
@@ -934,7 +956,8 @@ h1, h2, h3, h4 { font-weight: 600; }
   position: relative;
 }
 .selected-course-item.is-bad { border-color: var(--danger); }
-.sci-name { font-size: var(--fs-sm); font-weight: 600; margin-bottom: var(--sp-1); padding-right: 26px; }
+/* Dos controles en la esquina (quitar y fijar): el nombre no debe pasar por debajo. */
+.sci-name { font-size: var(--fs-sm); font-weight: 600; margin-bottom: var(--sp-1); padding-right: 56px; }
 .sci-detail { font-size: var(--fs-xs); color: var(--muted); margin-bottom: 2px; }
 .sci-score { font-size: var(--fs-xs); font-weight: 700; margin-top: var(--sp-1); }
 .sci-issue { font-size: var(--fs-2xs); margin-top: 3px; display: flex; align-items: center; gap: 4px; line-height: 1.4; }
@@ -957,6 +980,26 @@ h1, h2, h3, h4 { font-weight: 600; }
   transition: background 0.15s var(--ease), color 0.15s var(--ease);
 }
 .sci-remove:hover { background: rgba(239, 68, 68, 0.2); color: var(--danger-text); }
+
+/* Mismo molde que .sci-remove, corrido un lugar a la izquierda. */
+.sci-pin {
+  position: absolute;
+  top: 6px;
+  right: 34px;
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--r-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s var(--ease), color 0.15s var(--ease);
+}
+.sci-pin:hover { color: var(--accent-text); }
+.sci-pin.on { background: var(--accent); color: var(--accent-text); }
 .sci-color-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; }
 
 /*
@@ -1118,7 +1161,83 @@ h1, h2, h3, h4 { font-weight: 600; }
   transition: transform 0.22s var(--ease);
 }
 .modal-narrow { width: 520px; }
+.modal-wide { width: 900px; }
 .modal-overlay.open .modal { transform: translateY(0); }
+
+/* ============ TUTORIAL DE PRIMER USO ============ */
+.intro-dots { display: flex; gap: 6px; margin-bottom: var(--sp-4); }
+.intro-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--border);
+  transition: background 0.15s var(--ease);
+}
+.intro-dot.on { background: var(--accent-text); }
+
+.intro-step[hidden] { display: none; }
+.intro-field { display: flex; flex-direction: column; gap: var(--sp-1); margin-bottom: var(--sp-3); }
+.intro-field label { font-size: var(--fs-xs); color: var(--muted); }
+.intro-field .hour-select { width: 100%; }
+.intro-note { font-size: var(--fs-xs); color: var(--muted); line-height: 1.55; }
+/* El paso final son filas .report-tip: la primera no necesita separacion extra. */
+.intro-step .report-tip:first-of-type { margin-top: 0; }
+
+/* ============ ALTERNATIVAS DE HORARIO ============ */
+.variants-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: var(--sp-3);
+}
+.variant-card {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: var(--sp-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.variant-head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--sp-2); }
+.variant-head h3 { font-size: var(--fs-sm); font-weight: 600; }
+.variant-avg { font-family: var(--font-mono); font-size: var(--fs-sm); font-weight: 700; }
+.variant-metrics { font-size: var(--fs-2xs); color: var(--muted); }
+/* Dos lineas de docentes: mas y las tarjetas dejan de tener la misma altura. */
+.variant-teachers {
+  font-size: var(--fs-2xs);
+  color: var(--muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.variant-use { width: 100%; justify-content: center; }
+
+/*
+ * Vista previa de la semana. Reusa `.class-block` y `.color-N`, asi que hereda
+ * la paleta y el contraste que ya verifica tokens.test.ts.
+ */
+.mini-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  overflow: hidden;
+}
+.mini-cell {
+  position: relative;
+  min-height: var(--mini-row);
+  border-right: 1px solid var(--border-soft);
+  border-bottom: 1px solid var(--border-soft);
+}
+.mini-cell:nth-child(6n) { border-right: none; }
+.mini-grid .class-block {
+  padding: 0;
+  border-radius: 2px;
+  box-shadow: none;
+  pointer-events: none;
+}
 
 .modal-header {
   padding: var(--sp-5) var(--sp-5) var(--sp-4);
@@ -1392,7 +1511,10 @@ h1, h2, h3, h4 { font-weight: 600; }
 /* Punteros gruesos: los controles chicos crecen al minimo comodo. */
 @media (pointer: coarse) {
   .tab-btn, .kind-chip, .cycle-select { min-height: 34px; }
-  .panel-head-action, .modal-close, .sci-remove { min-width: 34px; min-height: 34px; }
+  .panel-head-action, .modal-close, .sci-remove, .sci-pin, .header-action { min-width: 34px; min-height: 34px; }
+  /* La X pasa a ocupar hasta 40px desde el borde: la chincheta y el nombre se corren. */
+  .sci-pin { right: 44px; }
+  .sci-name { padding-right: 84px; }
   .day-check { min-height: 36px; }
   .btn { min-height: 38px; }
 }

@@ -62,6 +62,7 @@
   <symbol id="i-award" viewBox="0 0 24 24"><circle cx="12" cy="9" r="5"/><path d="m9 13.5-1 7.5 4-2.5 4 2.5-1-7.5"/></symbol>
   <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v4.5l3 1.8"/></symbol>
   <symbol id="i-layers" viewBox="0 0 24 24"><path d="m12 3 8 4.5-8 4.5-8-4.5z"/><path d="m4 12.5 8 4.5 8-4.5"/></symbol>
+  <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M9.8 9.6a2.3 2.3 0 1 1 3 2.2c-.5.2-.8.7-.8 1.2v.5"/><path d="M12 16.6h.01"/></symbol>
 </svg>
 
 <a class="skip-link" href="#horario">Saltar al horario</a>
@@ -73,6 +74,10 @@
     <span class="stat-chip"><span class="dot dot-total" aria-hidden="true"></span><span id="total-courses-count">136 cursos</span></span>
     <span class="stat-chip"><span class="dot dot-sel" aria-hidden="true"></span><span id="selected-count">0 seleccionados</span></span>
   </div>
+  <button type="button" class="header-action" id="btn-help">
+    <svg class="ic" aria-hidden="true"><use href="#i-help"/></svg>
+    <span class="sr-only">Ver el tutorial de uso</span>
+  </button>
   <button type="button" class="theme-toggle" id="theme-toggle" aria-pressed="false">
     <svg class="ic ic-moon" aria-hidden="true"><use href="#i-moon"/></svg>
     <svg class="ic ic-sun" aria-hidden="true"><use href="#i-sun"/></svg>
@@ -143,6 +148,9 @@
       </h2>
       <button type="button" class="btn btn-accent" id="btn-auto">
         <svg class="ic" aria-hidden="true"><use href="#i-sparkle"/></svg>Mejor horario automático
+      </button>
+      <button type="button" class="btn btn-ghost" id="btn-variants">
+        <svg class="ic" aria-hidden="true"><use href="#i-layers"/></svg>Alternativas
       </button>
       <button type="button" class="btn btn-ghost" id="btn-params">
         <svg class="ic" aria-hidden="true"><use href="#i-sliders"/></svg>Parámetros
@@ -218,6 +226,80 @@
   </button>
 </div>
 
+<!-- TUTORIAL DE PRIMER USO -->
+<div class="modal-overlay" id="modal-intro" role="dialog" aria-modal="true" aria-labelledby="intro-title" hidden>
+  <div class="modal modal-narrow">
+    <div class="modal-header">
+      <div>
+        <h2 id="intro-title">
+          <svg class="ic" aria-hidden="true"><use href="#i-sparkle"/></svg>Bienvenido
+        </h2>
+        <p>Tres pasos y armás tu horario</p>
+      </div>
+      <button type="button" class="modal-close" data-close="modal-intro">
+        <svg class="ic" aria-hidden="true"><use href="#i-x"/></svg>
+        <span class="sr-only">Cerrar</span>
+      </button>
+    </div>
+
+    <div class="modal-body">
+      <p class="intro-dots" id="intro-dots" aria-hidden="true"></p>
+
+      <section class="intro-step" data-step="0">
+        <h3 class="modal-section-title">¿Qué carrera estudiás?</h3>
+        <div class="intro-field">
+          <label for="intro-career">Carrera</label>
+          <select id="intro-career" class="hour-select">
+            <option value="industrial">Ingeniería Industrial</option>
+          </select>
+        </div>
+        <p class="intro-note">
+          Por ahora es la única malla cargada. Los cursos de Sistemas (códigos <strong>SI</strong> y
+          <strong>SW</strong>) igual se pueden elegir, pero aparecen sin ciclo, tipo ni créditos.
+        </p>
+      </section>
+
+      <section class="intro-step" data-step="1" hidden>
+        <h3 class="modal-section-title">¿En qué ciclo estás?</h3>
+        <div class="intro-field">
+          <label for="intro-cycle">Ciclo</label>
+          <select id="intro-cycle" class="hour-select">
+            <option value="">Todavía no lo sé</option>
+          </select>
+        </div>
+        <p class="intro-note" id="intro-cycle-note">
+          Filtramos el catálogo por ese ciclo. Podés sacar el filtro cuando quieras con
+          <strong>Limpiar</strong>, o buscar cualquier curso por nombre.
+        </p>
+      </section>
+
+      <section class="intro-step" data-step="2" hidden>
+        <h3 class="modal-section-title">Esto es lo que podés hacer</h3>
+        <p class="report-tip">
+          <svg class="ic" aria-hidden="true"><use href="#i-search"/></svg>
+          <span>Buscá cualquier curso por nombre o código, aunque no sea de tu ciclo: el buscador
+          ignora el filtro de ciclo del panel.</span>
+        </p>
+        <p class="report-tip">
+          <svg class="ic" aria-hidden="true"><use href="#i-sliders"/></svg>
+          <span><strong>Parámetros</strong>: hora mínima y máxima, días libres, cuánto cruce tolerás
+          entre teoría y práctica, y qué priorizar.</span>
+        </p>
+        <p class="report-tip">
+          <svg class="ic" aria-hidden="true"><use href="#i-layers"/></svg>
+          <span><strong>Alternativas</strong>: los mismos cursos con distintos docentes, comparables
+          lado a lado. La chincheta de «Mi horario» fija un curso para que no cambie.</span>
+        </p>
+      </section>
+    </div>
+
+    <div class="modal-footer">
+      <button type="button" class="btn btn-ghost" id="intro-back">Atrás</button>
+      <button type="button" class="btn btn-accent" id="intro-next">Siguiente</button>
+    </div>
+  </div>
+</div>
+
 <!-- RESULTADO DEL OPTIMIZADOR -->
 <div class="modal-overlay" id="modal-report" role="dialog" aria-modal="true" aria-labelledby="report-title" hidden>
   <div class="modal modal-narrow">
@@ -239,6 +321,28 @@
         <svg class="ic" aria-hidden="true"><use href="#i-sliders"/></svg>Ajustar parámetros
       </button>
       <button type="button" class="btn btn-accent" data-close="modal-report">Entendido</button>
+    </div>
+  </div>
+</div>
+
+<!-- ALTERNATIVAS DE HORARIO -->
+<div class="modal-overlay" id="modal-variants" role="dialog" aria-modal="true" aria-labelledby="variants-title" hidden>
+  <div class="modal modal-wide">
+    <div class="modal-header">
+      <div>
+        <h2 id="variants-title">
+          <svg class="ic" aria-hidden="true"><use href="#i-layers"/></svg>Alternativas de horario
+        </h2>
+        <p>Los mismos cursos con distintos docentes. Fijá un curso desde «Mi horario» para que no cambie.</p>
+      </div>
+      <button type="button" class="modal-close" data-close="modal-variants">
+        <svg class="ic" aria-hidden="true"><use href="#i-x"/></svg>
+        <span class="sr-only">Cerrar</span>
+      </button>
+    </div>
+    <div class="modal-body" id="variants-body"></div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-ghost" data-close="modal-variants">Cerrar</button>
     </div>
   </div>
 </div>

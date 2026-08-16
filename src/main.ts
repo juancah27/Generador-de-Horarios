@@ -10,7 +10,7 @@ import {
 } from "./constants";
 import { causesViolation, clashReport, getViolators, hardViolationsForSection } from "./conflicts";
 import { filterCourses, type FilterMode } from "./course-filter";
-import { creditsByKind, kindLabel } from "./curriculum";
+import { creditsByKind, kindLabel, offeredCycles } from "./curriculum";
 import { layoutBlocks, visibleHours } from "./grid-layout";
 import {
   loadCoursesFromExcel,
@@ -18,7 +18,7 @@ import {
   loadDefaultData,
   loadTeacherScoresFromExcel,
 } from "./data-service";
-import { runOptimizer, lookupTeacherScore } from "./optimizer";
+import { runOptimizer, runOptimizerVariants, lookupTeacherScore } from "./optimizer";
 import { fillModalFromParams, normalizeParams, readParamsFromModal } from "./params";
 import { escapeHtml, normalizeCourseName } from "./utils";
 import type {
@@ -61,8 +61,25 @@ let panelState: { sidebar: boolean; summary: boolean } = { sidebar: true, summar
 let params: ScheduleParams = loadParamsState();
 let notifTimer = 0;
 
+/**
+ * Cursos fijados: el generador de alternativas les mantiene la seccion actual y
+ * varia el resto. Se guarda el curso, no la seccion: la seccion fijada siempre
+ * es la que esta en `selected`, asi que cambiarla a mano no deja un ancla vieja.
+ */
+const pinned = new Set<string>();
+/** Ultimas alternativas generadas, para que el boton de cada tarjeta las aplique. */
+let variants: OptimizerReport[] = [];
+
 const SELECTED_KEY = "fiis_selected";
+const PINNED_KEY = "fiis_pinned";
 const THEME_KEY = "fiis_theme";
+const INTRO_KEY = "fiis_intro";
+
+/** Version del tutorial. Subirla lo vuelve a mostrar una vez a todos. */
+const INTRO_VERSION = 1;
+/** Ultimo paso del asistente (0, 1, 2). */
+const INTRO_LAST_STEP = 2;
+let introStep = 0;
 
 /**
  * Tema activo. El valor inicial ya lo fijo el script inline de index.html
@@ -102,6 +119,7 @@ function saveSelectedState(): void {
       if (sec.secId) map[course] = sec.secId;
     }
     localStorage.setItem(SELECTED_KEY, JSON.stringify(map));
+    localStorage.setItem(PINNED_KEY, JSON.stringify([...pinned]));
   } catch {
     // Ignore storage errors
   }
@@ -136,7 +154,23 @@ function restoreSelectedState(): boolean {
   }
 
   desiredTargets = Object.keys(selected);
+  restorePinnedState();
   return true;
+}
+
+/** Solo se restauran anclas de cursos que sobrevivieron a la rehidratacion. */
+function restorePinnedState(): void {
+  pinned.clear();
+  try {
+    const raw = localStorage.getItem(PINNED_KEY);
+    if (!raw) return;
+    for (const savedName of JSON.parse(raw) as string[]) {
+      const course = resolveCourseName(savedName);
+      if (selected[course]) pinned.add(course);
+    }
+  } catch {
+    // Ignore storage errors
+  }
 }
 
 function loadParamsState(): ScheduleParams {
@@ -277,21 +311,23 @@ function scoreValueClass(score: number | null): string {
   return "val-danger";
 }
 
-function avgScore(): number | null {
-  const values = Object.values(selected)
+// Las tres calculan sobre el horario activo por defecto; se les pasa una
+// seleccion distinta para describir una alternativa sin tocar el estado.
+function avgScore(sel: Record<string, SectionData> = selected): number | null {
+  const values = Object.values(sel)
     .map((s) => getTeacherScore(s.docente))
     .filter((n): n is number => Number.isFinite(n));
   if (!values.length) return null;
   return values.reduce((a, b) => a + b, 0) / values.length;
 }
 
-function totalHours(): number {
-  return Object.values(selected)
+function totalHours(sel: Record<string, SectionData> = selected): number {
+  return Object.values(sel)
     .flatMap((s) => s.clases)
     .reduce((acc, c) => acc + (c.fin - c.inicio), 0);
 }
 
-function calcMetrics():
+function calcMetrics(sel: Record<string, SectionData> = selected):
   | {
       daysUsed: number;
       freeDays: DayCode[];
@@ -301,7 +337,7 @@ function calcMetrics():
       tpOv: number;
     }
   | null {
-  if (!Object.keys(selected).length) return null;
+  if (!Object.keys(sel).length) return null;
 
   const usedDays = new Set<DayCode>();
   let minH = 99;
@@ -309,7 +345,7 @@ function calcMetrics():
   let ttOv = 0;
   let tpOv = 0;
 
-  for (const sec of Object.values(selected)) {
+  for (const sec of Object.values(sel)) {
     for (const cls of sec.clases) {
       const day = String(cls.dia).trim() as DayCode;
       usedDays.add(day);
@@ -318,7 +354,7 @@ function calcMetrics():
     }
   }
 
-  const list = Object.values(selected);
+  const list = Object.values(sel);
   for (let i = 0; i < list.length; i++) {
     for (let j = i + 1; j < list.length; j++) {
       for (const clash of clashReport(list[i].clases, list[j].clases, params)) {
@@ -541,6 +577,11 @@ function updateSummary(): void {
       `<button type="button" class="sci-remove" data-course="${encodeURIComponent(course)}">` +
       icon("x") +
       `<span class="sr-only">Quitar ${escapeHtml(course)} del horario</span></button>` +
+      `<button type="button" class="sci-pin${pinned.has(course) ? " on" : ""}" ` +
+      `data-pin="${encodeURIComponent(course)}" aria-pressed="${pinned.has(course)}">` +
+      icon("pin") +
+      `<span class="sr-only">${pinned.has(course) ? "Liberar" : "Fijar"} la sección de ${escapeHtml(course)} ` +
+      "en las alternativas</span></button>" +
       `<div class="sci-name"><span class="sci-color-dot" style="background:${dot}"></span>${escapeHtml(course)}</div>` +
       `<div class="sci-detail">Sec. ${escapeHtml(sec.secId ?? "-")} · ${escapeHtml(sec.docente.split(",")[0])}</div>` +
       `<div class="sci-detail">${escapeHtml(
@@ -562,6 +603,19 @@ function updateSummary(): void {
       const encoded = btn.dataset.course;
       if (!encoded) return;
       removeCourse(decodeURIComponent(encoded));
+    });
+  });
+
+  container.querySelectorAll<HTMLButtonElement>(".sci-pin[data-pin]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const encoded = btn.dataset.pin;
+      if (!encoded) return;
+      const course = decodeURIComponent(encoded);
+      if (pinned.has(course)) pinned.delete(course);
+      else pinned.add(course);
+      saveSelectedState();
+      // Fijar no cambia el horario, solo la proxima tanda de alternativas.
+      updateSummary();
     });
   });
 }
@@ -656,6 +710,7 @@ function selectSection(courseName: string, secId: string): void {
 function removeCourse(courseName: string): void {
   delete selected[courseName];
   delete colorMap[courseName];
+  pinned.delete(courseName);
   desiredTargets = desiredTargets.filter((c) => c !== courseName);
   renderGrid();
   showNotif(`Eliminado: ${courseName.slice(0, 30)}`, "warning");
@@ -666,6 +721,7 @@ function clearAll(): void {
   colorMap = {};
   colorIdx = 0;
   desiredTargets = [];
+  pinned.clear();
   renderGrid();
   showNotif("Horario limpiado", "warning");
 }
@@ -880,7 +936,12 @@ function optimizerTargets(): string[] {
   return Object.keys(coursesData).slice(0, params.maxCourses);
 }
 
-function autoSelectBest(): void {
+/**
+ * `showReport` en false para el primer arranque: el reporte abre un modal y se
+ * apilaria con el tutorial, y solo hay un `modalOpener`, asi que dos modales
+ * abiertos se pelean el foco.
+ */
+function autoSelectBest(showReport = true): void {
   const targets = optimizerTargets();
   if (!targets.length) {
     showNotif("No hay cursos cargados", "warning");
@@ -897,7 +958,122 @@ function autoSelectBest(): void {
   colorMap = report.colorMap;
   colorIdx = report.colorIdx;
   renderGrid();
-  showOptimizerReport(report);
+  if (showReport) showOptimizerReport(report);
+}
+
+/** Cuantas alternativas se ofrecen. Mas de seis y la galeria deja de compararse de un vistazo. */
+const VARIANT_COUNT = 6;
+/** Alto de una hora en la vista previa, en px. Espeja `--mini-row` de styles.css. */
+const MINI_ROW = 9;
+
+function openVariants(): void {
+  const targets = optimizerTargets();
+  if (!targets.length) {
+    showNotif("No hay cursos cargados", "warning");
+    return;
+  }
+
+  const effective =
+    targets.length > params.maxCourses ? { ...params, maxCourses: targets.length } : params;
+
+  variants = runOptimizerVariants(targets, coursesData, teacherScores, effective, {
+    count: VARIANT_COUNT,
+    pinned: pinnedSections(),
+  });
+
+  const body = document.getElementById("variants-body");
+  if (!body) return;
+
+  const cards = variants.map(variantCardHtml).join("");
+  const onlyOne = variants.length < 2;
+
+  body.innerHTML =
+    (onlyOne
+      ? `<p class="report-tip">${icon("bulb")}<span>Con estos cursos y parámetros no hay otro reparto de ` +
+        "docentes posible. Soltá algún curso fijado o aflojá los límites en <strong>Parámetros</strong>.</span></p>"
+      : "") + `<div class="variants-gallery">${cards}</div>`;
+
+  body.querySelectorAll<HTMLButtonElement>("[data-variant]").forEach((btn) => {
+    btn.addEventListener("click", () => applyVariant(Number(btn.dataset.variant)));
+  });
+
+  openModal("modal-variants");
+}
+
+function applyVariant(index: number): void {
+  const report = variants[index];
+  if (!report) return;
+
+  // Copias: `selected` y `colorMap` se mutan al agregar o quitar cursos, y el
+  // reporte tiene que seguir sirviendo si el usuario reabre la galeria.
+  selected = { ...report.placed };
+  colorMap = { ...report.colorMap };
+  colorIdx = report.colorIdx;
+  desiredTargets = [...new Set([...Object.keys(selected), ...desiredTargets])];
+
+  closeModal("modal-variants");
+  renderGrid();
+  showNotif(`Alternativa ${index + 1} aplicada`, "success");
+}
+
+/** Curso -> seccion fijada. La seccion es siempre la que hay en el horario actual. */
+function pinnedSections(): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const course of pinned) {
+    const secId = selected[course]?.secId;
+    if (secId) out[course] = secId;
+  }
+  return out;
+}
+
+function variantCardHtml(report: OptimizerReport, index: number): string {
+  const sel = report.placed;
+  const metrics = calcMetrics(sel);
+  const average = avgScore(sel);
+  const teachers = [...new Set(Object.values(sel).map((s) => s.docente.split(",")[0]))];
+  const clashes = metrics ? metrics.ttOv + metrics.tpOv : 0;
+
+  return (
+    '<article class="variant-card">' +
+    `<header class="variant-head"><h3>Alternativa ${index + 1}</h3>` +
+    `<span class="variant-avg ${scoreValueClass(average)}">${average !== null ? average.toFixed(2) : "–"}</span>` +
+    "</header>" +
+    `<p class="variant-metrics">${Object.keys(sel).length} cursos · ${totalHours(sel)} h · ` +
+    `${metrics?.daysUsed ?? 0} días · ${clashes ? "con cruces" : "sin cruces"}</p>` +
+    `<p class="variant-teachers">${escapeHtml(teachers.join(" · "))}</p>` +
+    miniGridHtml(report) +
+    `<button type="button" class="btn btn-accent variant-use" data-variant="${index}">` +
+    "Usar este horario</button>" +
+    "</article>"
+  );
+}
+
+/**
+ * Vista previa de la semana: mismo layout que la grilla real pero sin texto ni
+ * interaccion. Reusa `.class-block` y las clases `.color-N`, asi que hereda la
+ * paleta y el contraste ya verificados.
+ */
+function miniGridHtml(report: OptimizerReport): string {
+  const blocks = layoutBlocks(report.placed, report.colorMap, new Set());
+  let html = '<div class="mini-grid" aria-hidden="true">';
+
+  for (const hour of visibleHours(params, report.placed)) {
+    for (const day of DAYS) {
+      html += '<div class="mini-cell">';
+      for (const block of blocks[`${day}-${hour}`] ?? []) {
+        const width = 100 / block.lanes;
+        const height = (block.cls.fin - block.cls.inicio) * MINI_ROW - 1;
+        // `right: auto` porque `.class-block` fija left y right: con width seria
+        // una caja sobredeterminada.
+        html +=
+          `<span class="class-block ${block.color}" style="top:${(block.cls.inicio - hour) * MINI_ROW}px;` +
+          `height:${height}px;left:${block.lane * width}%;width:${width}%;right:auto"></span>`;
+      }
+      html += "</div>";
+    }
+  }
+
+  return `${html}</div>`;
 }
 
 /** Control que tenia el foco antes de abrir el modal, para devolverselo al cerrar. */
@@ -1045,6 +1221,112 @@ function setupMallaFilters(): void {
   box.toggleAttribute("hidden", false);
 }
 
+/**
+ * Aplica el filtro de ciclo del catalogo desde afuera del panel.
+ * No se vuelve a llamar a `setupMallaFilters`: engancha sus listeners sin quitar
+ * los anteriores y quedarian disparando dos veces. `syncFilterControls` corre
+ * dentro de `renderCourseList` y ya deja el control y el boton "Limpiar" al dia.
+ */
+function applyCycleFilter(cycle: string): void {
+  cycleFilter = cycle;
+  const cycleSel = document.getElementById("filter-cycle") as HTMLSelectElement | null;
+  if (cycleSel) cycleSel.value = cycle;
+  renderCourseList();
+}
+
+interface IntroState {
+  v: number;
+  cycle: string;
+}
+
+function readIntroState(): IntroState | null {
+  try {
+    const raw = localStorage.getItem(INTRO_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<IntroState>;
+    if (parsed?.v !== INTRO_VERSION) return null;
+    return { v: INTRO_VERSION, cycle: typeof parsed.cycle === "string" ? parsed.cycle : "" };
+  } catch {
+    return null;
+  }
+}
+
+function saveIntroState(cycle: string): void {
+  try {
+    localStorage.setItem(INTRO_KEY, JSON.stringify({ v: INTRO_VERSION, cycle }));
+  } catch {
+    // Ignore storage errors
+  }
+}
+
+/**
+ * Solo se ofrecen ciclos con cursos ofertados: filtrar por uno sin oferta deja
+ * el catalogo vacio, y el tutorial no puede empujar al usuario a esa pantalla.
+ */
+function fillIntroCycles(): void {
+  const sel = document.getElementById("intro-cycle") as HTMLSelectElement | null;
+  const note = document.getElementById("intro-cycle-note");
+  if (!sel) return;
+
+  const cycles = curriculum
+    ? offeredCycles(curriculum, Object.keys(coursesData).map(courseCode))
+    : [];
+
+  sel.innerHTML =
+    '<option value="">Todavía no lo sé</option>' +
+    cycles.map((c) => `<option value="${c}">Ciclo ${c}</option>`).join("");
+
+  sel.disabled = !cycles.length;
+  if (note && !cycles.length) {
+    note.textContent =
+      "No se pudo cargar la malla curricular, así que el catálogo arranca sin filtrar por ciclo.";
+  }
+}
+
+function showIntroStep(step: number): void {
+  introStep = step;
+
+  document.querySelectorAll<HTMLElement>(".intro-step").forEach((section) => {
+    section.toggleAttribute("hidden", Number(section.dataset.step) !== step);
+  });
+
+  const dots = document.getElementById("intro-dots");
+  if (dots) {
+    dots.innerHTML = Array.from(
+      { length: INTRO_LAST_STEP + 1 },
+      (_, i) => `<span class="intro-dot${i === step ? " on" : ""}"></span>`,
+    ).join("");
+  }
+
+  const back = document.getElementById("intro-back");
+  const next = document.getElementById("intro-next");
+  back?.toggleAttribute("hidden", step === 0);
+  if (next) next.textContent = step === INTRO_LAST_STEP ? "Empezar" : "Siguiente";
+}
+
+function openIntro(): void {
+  fillIntroCycles();
+  const saved = readIntroState();
+  const sel = document.getElementById("intro-cycle") as HTMLSelectElement | null;
+  if (sel && saved) sel.value = saved.cycle;
+
+  // Se marca como visto al abrirlo: cerrar con Escape o con la X tambien cuenta,
+  // si no el tutorial volveria en cada recarga.
+  saveIntroState(saved?.cycle ?? "");
+
+  showIntroStep(0);
+  openModal("modal-intro");
+}
+
+function finishIntro(): void {
+  const sel = document.getElementById("intro-cycle") as HTMLSelectElement | null;
+  const cycle = sel && !sel.disabled ? sel.value : "";
+
+  saveIntroState(cycle);
+  closeModal("modal-intro");
+  applyCycleFilter(cycle);
+}
+
 /** Refleja en los controles que filtros estan activos. */
 function syncFilterControls(shown: number, total: number): void {
   const cycleSel = document.getElementById("filter-cycle") as HTMLSelectElement | null;
@@ -1070,7 +1352,14 @@ function syncFilterControls(shown: number, total: number): void {
 function wireControls(): void {
   const on = (id: string, fn: () => void) => document.getElementById(id)?.addEventListener("click", fn);
 
-  on("btn-auto", autoSelectBest);
+  on("btn-auto", () => autoSelectBest());
+  on("btn-help", openIntro);
+  on("intro-back", () => showIntroStep(Math.max(0, introStep - 1)));
+  on("intro-next", () => {
+    if (introStep < INTRO_LAST_STEP) showIntroStep(introStep + 1);
+    else finishIntro();
+  });
+  on("btn-variants", openVariants);
   on("btn-params", openOptimizer);
   on("btn-clear", clearAll);
   on("btn-export", exportSchedule);
@@ -1189,9 +1478,17 @@ async function init(): Promise<void> {
   }
 
   // Solo genera automatico en el primer arranque; si habia horario guardado, se respeta.
+  const intro = readIntroState();
+  const firstRun = !intro;
   const restoredCount = Object.keys(selected).length;
-  if (!restored) window.setTimeout(autoSelectBest, 150);
+
+  // En el primer uso el horario se arma en silencio: el tutorial va encima y el
+  // reporte del optimizador no debe competir por la pantalla.
+  if (!restored) autoSelectBest(!firstRun);
   else if (restoredCount) showNotif(`Horario restaurado con ${restoredCount} cursos`, "success");
+
+  if (firstRun) openIntro();
+  else if (intro.cycle) applyCycleFilter(intro.cycle);
 }
 
 void init();
